@@ -53,9 +53,11 @@ the 2026 target compiles against IDEA 2026.1 and requires a JDK 25 toolchain.
 Set `JAVA_HOME_25_X64` to that JDK if Gradle cannot find it.
 
 ```sh
-./gradlew test buildPlugin -DIDEA_VER=2025 --no-configuration-cache
-./gradlew test buildPlugin -DIDEA_VER=2026 --no-configuration-cache
+./gradlew buildPlugin -DIDEA_VER=2025 --no-configuration-cache
+./gradlew buildPlugin -DIDEA_VER=2026 --no-configuration-cache
 ```
+
+For optional regression checks, run `./gradlew test` with the same target SDK.
 
 Archives are written to `build/distributions/`. To use an installed IDE as the
 SDK, add `-PlocalIdePath=/path/to/ide`. To verify against several installed IDEs,

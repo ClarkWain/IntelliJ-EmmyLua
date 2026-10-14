@@ -46,9 +46,11 @@ IDEA 2026.1 SDK 编译，需要 JDK 25 工具链。若 Gradle 未找到 JDK 25�
 `JAVA_HOME_25_X64` 设置为其安装路径。
 
 ```sh
-./gradlew test buildPlugin -DIDEA_VER=2025 --no-configuration-cache
-./gradlew test buildPlugin -DIDEA_VER=2026 --no-configuration-cache
+./gradlew buildPlugin -DIDEA_VER=2025 --no-configuration-cache
+./gradlew buildPlugin -DIDEA_VER=2026 --no-configuration-cache
 ```
+
+需要回归检查时，可使用相同目标 SDK 单独执行 `./gradlew test`。
 
 输出目录为 `build/distributions/`。可加 `-PlocalIdePath=/path/to/ide` 使用本地 IDE SDK，
 或用 `-PverificationIdePaths="/path/to/ide1;/path/to/ide2"` 指定多个 IDE 并执行
