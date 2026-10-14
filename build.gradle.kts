@@ -177,6 +177,7 @@ project(":") {
                 testFramework(TestFrameworkType.Bundled)
             } else {
                 testFramework(TestFrameworkType.Platform)
+                testFramework(TestFrameworkType.Plugin.Java)
             }
             pluginVerifier()
             // 2025.1 keeps spellchecker on the main platform classpath. Newer
