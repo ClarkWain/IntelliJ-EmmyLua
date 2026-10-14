@@ -16,26 +16,19 @@
 
 package com.tang.intellij.lua.stubs
 
-import com.intellij.lang.ASTNode
 import com.intellij.psi.stubs.IndexSink
 import com.intellij.psi.stubs.StubElement
 import com.intellij.psi.stubs.StubInputStream
 import com.intellij.psi.stubs.StubOutputStream
 import com.intellij.util.io.StringRef
 import com.tang.intellij.lua.comment.psi.LuaDocTagAlias
-import com.tang.intellij.lua.comment.psi.LuaDocTagClass
 import com.tang.intellij.lua.comment.psi.impl.LuaDocTagAliasImpl
 import com.tang.intellij.lua.psi.LuaElementType
 import com.tang.intellij.lua.stubs.index.StubKeys
-import com.tang.intellij.lua.ty.ITy
 import com.tang.intellij.lua.ty.Ty
+import com.tang.intellij.lua.ty.TyAlias
 
 class LuaDocTagAliasType : LuaStubElementType<LuaDocTagAliasStub, LuaDocTagAlias>("DOC_TAG_ALIAS") {
-    override fun shouldCreateStub(node: ASTNode): Boolean {
-        val psi = node.psi as LuaDocTagAlias
-        return psi.name != null
-    }
-
     override fun createPsi(stub: LuaDocTagAliasStub): LuaDocTagAlias {
         return  LuaDocTagAliasImpl(stub, this)
     }
@@ -47,12 +40,12 @@ class LuaDocTagAliasType : LuaStubElementType<LuaDocTagAliasStub, LuaDocTagAlias
 
     override fun deserialize(stream: StubInputStream, parent: StubElement<*>): LuaDocTagAliasStub {
         val name = stream.readName()
-        val ty = Ty.deserialize(stream)
+        val ty = Ty.deserialize(stream) as TyAlias
         return LuaDocTagAliasStubImpl(StringRef.toString(name), ty, parent)
     }
 
     override fun createStub(alias: LuaDocTagAlias, parent: StubElement<*>): LuaDocTagAliasStub {
-        return LuaDocTagAliasStubImpl(alias.name!!, alias.type, parent)
+        return LuaDocTagAliasStubImpl(alias.name, alias.type, parent)
     }
 
     override fun indexStub(stub: LuaDocTagAliasStub, sink: IndexSink) {
@@ -61,13 +54,13 @@ class LuaDocTagAliasType : LuaStubElementType<LuaDocTagAliasStub, LuaDocTagAlias
     }
 }
 
-interface LuaDocTagAliasStub : StubElement<LuaDocTagClass> {
+interface LuaDocTagAliasStub : StubElement<LuaDocTagAlias> {
     val name: String
-    val type: ITy
+    val type: TyAlias
 }
 
 class LuaDocTagAliasStubImpl(
         override val name: String,
-        override val type: ITy,
+        override val type: TyAlias,
         parent: StubElement<*>
-) : LuaDocStubBase<LuaDocTagClass>(parent, LuaElementType.DOC_ALIAS), LuaDocTagAliasStub
+) : LuaDocStubBase<LuaDocTagAlias>(parent, LuaElementType.DOC_ALIAS), LuaDocTagAliasStub

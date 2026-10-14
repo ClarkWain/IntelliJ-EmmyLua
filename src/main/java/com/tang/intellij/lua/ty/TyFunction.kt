@@ -16,6 +16,7 @@
 
 package com.tang.intellij.lua.ty
 
+import com.intellij.psi.PsiElement
 import com.intellij.psi.stubs.StubInputStream
 import com.intellij.psi.stubs.StubOutputStream
 import com.intellij.util.Processor
@@ -26,69 +27,69 @@ import com.tang.intellij.lua.stubs.*
 
 interface IFunSignature {
     val colonCall: Boolean
-    val returnTy: ITy
-    val params: Array<LuaParamInfo>
+
+    val genericParams: Array<out TyGenericParameter>?
+
+    val returnTy: ITy?
+    val params: Array<out LuaParamInfo>?
+    val variadicParamTy: ITy?
+
     val displayName: String
     val paramSignature: String
-    val tyParameters: Array<TyParameter>
-    val varargTy: ITy?
-    fun substitute(substitutor: ITySubstitutor): IFunSignature
-    fun subTypeOf(other: IFunSignature, context: SearchContext, strict: Boolean): Boolean
+
+    fun substitute(context: SearchContext, substitutor: ITySubstitutor): IFunSignature
+    fun equals(context: SearchContext, other: IFunSignature, equalityFlags: Int): Boolean
+    fun contravariantOf(context: SearchContext, other: IFunSignature, flags: Int): Boolean
 }
 
-fun IFunSignature.getParamTyEx(callExpr: LuaCallExpr, index: Int): ITy {
-    var t: ITy = Ty.UNKNOWN
-    processArgs(callExpr) { i, param ->
-        if (i == index) {
-            t = param.ty
-            false
-        } else true
-    }
-    return t
+interface IPsiFunSignature : IFunSignature {
+    val psi: PsiElement
 }
 
-fun IFunSignature.processArgs(callExpr: LuaCallExpr, processor: (index:Int, param: LuaParamInfo) -> Boolean) {
-    val expr = callExpr.expr
-    val thisTy = if (expr is LuaIndexExpr) {
-        expr.guessType(SearchContext.get(expr.project))
+fun IFunSignature.processParameters(callExpr: LuaCallExpr, processor: (index: Int, param: LuaParamInfo) -> Boolean) {
+    val expr = callExpr.expression
+    val selfTy = if (expr is LuaIndexExpr) {
+        expr.guessParentType(SearchContext.get(expr.project))
     } else null
-    processArgs(thisTy, callExpr.isMethodColonCall, processor)
+    processParameters(selfTy, callExpr.isMethodColonCall, processor)
 }
 
-fun IFunSignature.processArgs(thisTy: ITy?, colonStyle: Boolean, processor: (index:Int, param: LuaParamInfo) -> Boolean) {
+fun IFunSignature.processParameters(selfTy: ITy?, colonStyle: Boolean, processor: (index: Int, param: LuaParamInfo) -> Boolean) {
     var index = 0
     var pIndex = 0
     if (colonStyle && !colonCall) {
         pIndex++
     } else if (!colonStyle && colonCall) {
-        val pi = LuaParamInfo.createSelf(thisTy)
+        val pi = LuaParamInfo.createSelf(selfTy)
         if (!processor(index++, pi)) return
     }
 
-    for (i in pIndex until params.size) {
-        if (!processor(index++, params[i])) return
+    params?.let {
+        for (i in pIndex until it.size) {
+            if (!processor(index++, it[i])) return
+        }
     }
 }
 
-fun IFunSignature.processArgs(processor: (index:Int, param: LuaParamInfo) -> Boolean) {
+fun IFunSignature.processParameters(processor: (index: Int, param: LuaParamInfo) -> Boolean) {
     var index = 0
     if (colonCall)
         index++
-    for (i in params.indices) {
-        if (!processor(index++, params[i])) return
+
+    params?.forEach {
+        if (!processor(index++, it)) return
     }
 }
 
-@Suppress("UNUSED_PARAMETER")
-fun IFunSignature.processParams(thisTy: ITy?, colonStyle: Boolean, processor: (index:Int, param: LuaParamInfo) -> Boolean) {
+fun IFunSignature.processParams(thisTy: ITy?, colonStyle: Boolean, processor: (index: Int, param: LuaParamInfo) -> Boolean) {
     var index = 0
     if (colonCall) {
         val pi = LuaParamInfo.createSelf(thisTy)
         if (!processor(index++, pi)) return
     }
 
-    for (element in params) {
-        if (!processor(index++, element)) return
+    params?.forEach {
+        if (!processor(index++, it)) return
     }
 }
 
@@ -101,176 +102,260 @@ fun IFunSignature.getFirstParam(thisTy: ITy?, colonStyle: Boolean): LuaParamInfo
     return pi
 }
 
-fun IFunSignature.getParamTy(index: Int): ITy {
-    val info = params.getOrNull(index)
-    return info?.ty ?: Ty.UNKNOWN
+fun IFunSignature.getArgTy(index: Int): ITy {
+    return params?.getOrNull(index)?.ty ?: Primitives.UNKNOWN
 }
 
 //eg. print(...)
 fun IFunSignature.hasVarargs(): Boolean {
-    return this.varargTy != null
+    return this.variadicParamTy != null
 }
 
-fun IFunSignature.isGeneric() = tyParameters.isNotEmpty()
+fun IFunSignature.isGeneric() = genericParams?.isNotEmpty() == true
 
 abstract class FunSignatureBase(override val colonCall: Boolean,
-                                override val params: Array<LuaParamInfo>,
-                                override val tyParameters: Array<TyParameter> = emptyArray()
+                                override val params: Array<out LuaParamInfo>?,
+                                override val genericParams: Array<out TyGenericParameter>? = null
 ) : IFunSignature {
     override fun equals(other: Any?): Boolean {
         if (other is IFunSignature) {
-            if (params.size != other.params.size)
-                return false
-            return params.indices.none { params[it] != other.params.getOrNull(it) }
+            return colonCall == other.colonCall
+                    && params?.let { other.params?.contentEquals(it) ?: false } ?: (other.params == null)
+                    && genericParams?.let { other.genericParams?.contentEquals(it) ?: false } ?: (other.genericParams == null)
+                    && returnTy == other.returnTy
+                    && variadicParamTy == other.variadicParamTy
         }
         return false
     }
 
-    override fun hashCode(): Int {
-        var code = 0//returnTy.hashCode()
-        params.forEach {
-            code += it.ty.hashCode() * 31
+    override fun equals(context: SearchContext, other: IFunSignature, equalityFlags: Int): Boolean {
+        if (colonCall != other.colonCall) {
+            return false
         }
+
+        val returnTyEqual = returnTy?.let {
+            other.returnTy?.equals(context, it, equalityFlags) ?: false
+        } ?: (other.returnTy === null)
+
+        if (!returnTyEqual) {
+            return false
+        }
+
+        val varargTyEqual = variadicParamTy?.let {
+            other.variadicParamTy?.equals(context, it, equalityFlags) ?: false
+        } ?: (other.variadicParamTy === null)
+
+        if (!varargTyEqual) {
+            return false
+        }
+
+        val paramsEqual = params?.let { params ->
+            other.params?.let { otherParams ->
+                params.size == otherParams.size && otherParams.asSequence().zip(params.asSequence()).all { (param, otherParam) ->
+                    param.equals(context, otherParam, equalityFlags)
+                }
+            } ?: false
+        } ?: (other.params == null)
+
+        if (!paramsEqual) {
+            return false
+        }
+
+        return genericParams?.let { params ->
+            other.genericParams?.let { otherParams ->
+                params.size == otherParams.size && otherParams.asSequence().zip(params.asSequence()).all { (param, otherParam) ->
+                    param.equals(context, otherParam, equalityFlags)
+                }
+            } ?: false
+        } ?: (other.genericParams == null)
+    }
+
+    override fun hashCode(): Int {
+        var code = if (colonCall) 1 else 0
+        params?.forEach {
+            code = code * 31 + it.hashCode()
+        }
+        genericParams?.forEach {
+            code = code * 31 + it.hashCode()
+        }
+        code = code * 31 + (returnTy?.hashCode() ?: 0)
+        code = code * 31 + (variadicParamTy?.hashCode() ?: 0)
         return code
     }
 
     override val displayName: String by lazy {
-        val paramSB = mutableListOf<String>()
-        params.forEach {
-            paramSB.add(it.name + ":" + it.ty.displayName)
+        let { signature ->
+            buildString {
+                this.append("fun")
+                TyRenderer.SIMPLE.renderSignature(this, signature)
+            }
         }
-        "fun(${paramSB.joinToString(", ")}):${returnTy.displayName}"
     }
 
     override val paramSignature: String get() {
-        val list = arrayOfNulls<String>(params.size)
-        for (i in params.indices) {
-            val lpi = params[i]
-            list[i] = lpi.name
+        return params?.let {
+            val list = arrayOfNulls<String>(it.size)
+            for (i in it.indices) {
+                val lpi = it[i]
+                list[i] = lpi.name
+            }
+            return "(" + list.joinToString(", ") + ")"
+        } ?: ""
+    }
+
+    override fun substitute(context: SearchContext, substitutor: ITySubstitutor): IFunSignature {
+        var paramsSubstituted = false
+
+        val substitutedParams = params?.map {
+            val substitutedParam = it.substitute(context, substitutor)
+
+            if (substitutedParam !== it) {
+                paramsSubstituted = true
+            }
+
+            substitutedParam
         }
-        return "(" + list.joinToString(", ") + ")"
+
+        val substitutedGenericParams = genericParams?.map {
+                val substitutedGenericParam = it.substitute(context, substitutor)
+
+                if (substitutedGenericParam !== it) {
+                    paramsSubstituted = true
+                }
+
+                substitutedGenericParam
+            }?.filterIsInstance<TyGenericParameter>()?.toTypedArray()
+
+        val substitutedReturnTy = returnTy?.substitute(context, substitutor)
+        val substitutedVarargTy = variadicParamTy?.let { TyMultipleResults.getResult(context, it.substitute(context, substitutor)) }
+
+        return if (paramsSubstituted || substitutedReturnTy !== returnTy || substitutedVarargTy !== variadicParamTy) {
+            FunSignature(
+                colonCall,
+                substitutedReturnTy,
+                substitutedParams?.toTypedArray(),
+                substitutedVarargTy,
+                substitutedGenericParams
+            )
+        } else {
+            this
+        }
     }
 
-    override fun substitute(substitutor: ITySubstitutor): IFunSignature {
-        val list = params.map { it.substitute(substitutor) }
-        return FunSignature(colonCall,
-                returnTy.substitute(substitutor),
-                varargTy?.substitute(substitutor),
-                list.toTypedArray(),
-                tyParameters)
-    }
+    override fun contravariantOf(context: SearchContext, other: IFunSignature, flags: Int): Boolean {
+        params?.let {
+            val otherParams = other.params
 
-    override fun subTypeOf(other: IFunSignature, context: SearchContext, strict: Boolean): Boolean {
-        for (i in params.indices) {
-            val p1 = params[i]
-            val p2 = other.params.getOrNull(i) ?: return false
-            if (!p1.ty.subTypeOf(p2.ty, context, strict))
+            if (otherParams == null) {
                 return false
+            }
+
+            for (i in otherParams.indices) {
+                val param = it.getOrNull(i)
+                val otherParam = otherParams[i]
+
+                if (param == null) {
+                    if (otherParam.optional) {
+                        // Allows assignment of fun(str?: string) to fun().
+
+                        // Technically this is unsafe, since fun() is also assignable to fun(num?: number). However, it's useful, and TypeScript allow it, so
+                        // we'll follow suit.
+
+                        break
+                    } else {
+                        return false
+                    }
+                }
+
+                if (param.optional && !otherParam.optional && otherParam.ty != null) {
+                    return false
+                }
+
+                val otherParamTy = otherParam.ty ?: Primitives.UNKNOWN
+
+                if (!otherParamTy.contravariantOf(context, param.ty ?: Primitives.UNKNOWN, flags)) {
+                    return false
+                }
+            }
         }
-        return true
+
+        val otherReturnTy = other.returnTy
+
+        return if (otherReturnTy != null) {
+            returnTy?.contravariantOf(context, otherReturnTy, flags) ?: true
+        } else returnTy == null
     }
 }
 
-class FunSignature(colonCall: Boolean,
-                   override val returnTy: ITy,
-                   override val varargTy: ITy?,
-                   params: Array<LuaParamInfo>,
-                   tyParameters: Array<TyParameter> = emptyArray()
-) : FunSignatureBase(colonCall, params, tyParameters) {
+open class FunSignature(colonCall: Boolean,
+                   override val returnTy: ITy?,
+                   params: Array<out LuaParamInfo>?,
+                   override val variadicParamTy: ITy? = null,
+                   genericParams: Array<out TyGenericParameter>? = null
+) : FunSignatureBase(colonCall, params, genericParams) {
 
     companion object {
-        private fun initParams(func: LuaDocFunctionTy): Array<LuaParamInfo> {
-            val list = mutableListOf<LuaParamInfo>()
-            func.functionParamList.forEach {
-                val p = LuaParamInfo()
-                p.name = it.id.text
-                p.ty = it.ty?.getType() ?: Ty.UNKNOWN
-                list.add(p)
-            }
-            return list.toTypedArray()
-        }
-
-        fun create(colonCall: Boolean, functionTy: LuaDocFunctionTy): IFunSignature {
-            val list = mutableListOf<TyParameter>()
-            functionTy.genericDefList.forEach { it.name?.let { name -> list.add(TyParameter(name, it.classNameRef?.text)) } }
-            return FunSignature(
-                    colonCall,
-                    functionTy.returnType,
-                    functionTy.varargParam?.type,
-                    initParams(functionTy),
-                    list.toTypedArray()
-            )
-        }
-
         fun serialize(sig: IFunSignature, stream: StubOutputStream) {
             stream.writeBoolean(sig.colonCall)
-            Ty.serialize(sig.returnTy, stream)
-            stream.writeTyNullable(sig.varargTy)
-            stream.writeParamInfoArray(sig.params)
+            stream.writeTyNullable(sig.returnTy)
+            stream.writeTyNullable(sig.variadicParamTy)
+            stream.writeParamInfoArrayNullable(sig.params)
+            stream.writeGenericParamsNullable(sig.genericParams)
         }
 
-        fun deserialize(stream: StubInputStream): IFunSignature {
+        fun deserialize(stream: StubInputStream): FunSignature {
             val colonCall = stream.readBoolean()
-            val ret = Ty.deserialize(stream)
+            val ret = stream.readTyNullable()
             val varargTy = stream.readTyNullable()
-            val params = stream.readParamInfoArray()
-            return FunSignature(colonCall, ret, varargTy, params)
+            val params = stream.readParamInfoArrayNullable()
+            val genericParams = stream.readGenericParamsNullable()
+            return FunSignature(colonCall, ret, params, varargTy, genericParams)
         }
     }
+}
+
+class TyDocFunSignature(luaDocFunctionTy: LuaDocFunctionTy, colonCall: Boolean) : FunSignature(
+    colonCall,
+    luaDocFunctionTy.returnType,
+    luaDocFunctionTy.params as? Array<out LuaParamInfo>, // TODO: Remove cast once https://youtrack.jetbrains.com/issue/KT-36399 lands
+    luaDocFunctionTy.varargParam,
+    luaDocFunctionTy.genericDefList.map { TyGenericParameter(it) }.toTypedArray()
+), IPsiFunSignature {
+    override val psi = luaDocFunctionTy
 }
 
 interface ITyFunction : ITy {
     val mainSignature: IFunSignature
-    val signatures: Array<IFunSignature>
-}
-
-val ITyFunction.isColonCall get() = hasFlag(TyFlags.SELF_FUNCTION)
-
-fun ITyFunction.process(processor: (IFunSignature) -> Boolean) {
-    if (processor(mainSignature)) {
-        for (signature in signatures) {
-            if (!processor(signature))
-                break
-        }
-    }
-}
-
-fun ITyFunction.process(processor: Processor<IFunSignature>) {
-    process { processor.process(it) }
-}
-
-fun ITyFunction.findPerfectSignature(nArgs: Int): IFunSignature {
-    var sgi: IFunSignature? = null
-    var perfectN = Int.MAX_VALUE
-    process(Processor {
-        val offset = Math.abs(it.params.size - nArgs)
-        if (offset < perfectN) {
-            perfectN = offset
-            sgi = it
-            if (perfectN == 0) return@Processor false
-        }
-        true
-    })
-    return sgi ?: mainSignature
-}
-
-fun ITyFunction.findPerfectSignature(call: LuaCallExpr): IFunSignature {
-    val n = call.argList.size
-    // 是否是 inst:method() 被用为 inst.method(self) 形式
-    val isInstanceMethodUsedAsStaticMethod = isColonCall && call.isMethodDotCall
-    if (isInstanceMethodUsedAsStaticMethod)
-        return findPerfectSignature(n - 1)
-    val isStaticMethodUsedAsInstanceMethod = !isColonCall && call.isMethodColonCall
-    return findPerfectSignature(if(isStaticMethodUsedAsInstanceMethod) n + 1 else n)
+    val signatures: Array<out IFunSignature>
 }
 
 abstract class TyFunction : Ty(TyKind.Function), ITyFunction {
+
+    override fun equals(context: SearchContext, other: ITy, equalityFlags: Int): Boolean {
+        if (this === other) {
+            return true
+        }
+
+        val resolvedOther = Ty.resolve(context, other)
+
+        if (resolvedOther is ITyFunction) {
+            if (!mainSignature.equals(context, resolvedOther.mainSignature, equalityFlags))
+                return false
+
+            return signatures.size == resolvedOther.signatures.size
+                    && signatures.asSequence().zip(resolvedOther.signatures.asSequence()).all { (signature, otherSignature) ->
+                signature.equals(context, otherSignature, equalityFlags)
+            }
+        }
+
+        return false
+    }
 
     override fun equals(other: Any?): Boolean {
         if (other is ITyFunction) {
             if (mainSignature != other.mainSignature)
                 return false
-           return signatures.indices.none { signatures[it] != other.signatures.getOrNull(it) }
+            return signatures.indices.none { signatures[it] != other.signatures.getOrNull(it) }
         }
         return false
     }
@@ -278,38 +363,71 @@ abstract class TyFunction : Ty(TyKind.Function), ITyFunction {
     override fun hashCode(): Int {
         var code = mainSignature.hashCode()
         signatures.forEach {
-            code += it.hashCode() * 31
+            code = code * 31 + it.hashCode()
         }
         return code
     }
 
-    override fun subTypeOf(other: ITy, context: SearchContext, strict: Boolean): Boolean {
-        if (super.subTypeOf(other, context, strict) || other == FUNCTION)
-            return true // Subtype of function primitive.
+    override fun contravariantOf(context: SearchContext, other: ITy, varianceFlags: Int): Boolean {
+        if (super.contravariantOf(context, other, varianceFlags)) return true
 
         var matched = false
-        if (other is ITyFunction) {
-            process(Processor { sig1 ->
-                other.process(Processor { sig2 ->
-                    matched = sig2.subTypeOf(sig1, context, strict)
-                    !matched
-                })
-                !matched
-            })
+
+        processSignatures(context) { sig ->
+            if (other == Primitives.FUNCTION) {
+                val multipleResults = sig.returnTy as? TyMultipleResults
+                matched = multipleResults?.variadic == true && multipleResults.list.size == 1 && multipleResults.list.first().isUnknown
+                        && (sig.params?.size ?: 0) == 0 && sig.variadicParamTy?.isUnknown == true
+            } else {
+                val genericScopeName = sig.genericParams?.firstOrNull()?.scopeName
+
+                other.processSignatures(context) { otherSig ->
+                    val otherGenericScopeName = otherSig.genericParams?.firstOrNull()?.scopeName
+                    val scopeNames = if (genericScopeName != null) {
+                        if (otherGenericScopeName != null) {
+                            listOf(genericScopeName, otherGenericScopeName)
+                        } else {
+                            listOf(genericScopeName)
+                        }
+                    } else if (otherGenericScopeName != null) {
+                        listOf(otherGenericScopeName)
+                    } else {
+                        listOf()
+                    }
+
+                    context.withAbstractGenericScopeNames(scopeNames) {
+                        matched = sig.contravariantOf(context, otherSig, varianceFlags)
+                        !matched
+                    }
+                }
+            }
+            !matched
         }
+
         return matched
     }
 
-    override fun substitute(substitutor: ITySubstitutor): ITy {
-        return substitutor.substitute(this)
+    override fun substitute(context: SearchContext, substitutor: ITySubstitutor): ITy {
+        return substitutor.substitute(context, this)
     }
 
     override fun accept(visitor: ITyVisitor) {
         visitor.visitFun(this)
     }
+
+    override fun processSignatures(context: SearchContext, processor: Processor<IFunSignature>): Boolean {
+        // Overloads will always be more (or as) specific as the main signature, so we visit them first.
+        for (signature in signatures) {
+            if (!processor.process(signature)) {
+                return false
+            }
+        }
+
+        return processor.process(mainSignature)
+    }
 }
 
-class TyPsiFunction(private val colonCall: Boolean, val psi: LuaFuncBodyOwner, flags: Int = 0) : TyFunction() {
+class TyPsiFunction(private val colonCall: Boolean, override val psi: LuaFuncBodyOwner<*>, flags: Int = 0) : TyFunction(), IPsiTy<LuaFuncBodyOwner<*>> {
     init {
         this.flags = flags
         if (colonCall) {
@@ -318,25 +436,35 @@ class TyPsiFunction(private val colonCall: Boolean, val psi: LuaFuncBodyOwner, f
     }
 
     override val mainSignature: IFunSignature by lazy {
+        val funcBodyOwner = psi
 
-        object : FunSignatureBase(colonCall, psi.params, psi.tyParams) {
-            override val returnTy: ITy by lazy {
-                var returnTy = psi.guessReturnType(SearchContext.get(psi.project))
-                /**
-                 * todo optimize this bug solution
-                 * local function test()
-                 *      return test
-                 * end
-                 * -- will crash after type `test`
-                 */
-                if (returnTy is TyPsiFunction && returnTy.psi == psi) {
-                    returnTy = UNKNOWN
+        object : FunSignatureBase(colonCall, funcBodyOwner.params, funcBodyOwner.genericParams), IPsiFunSignature {
+            override val psi = funcBodyOwner
+
+            private var cachedReturnTy: ITy? = null
+
+            override val returnTy: ITy? get() {
+                if (cachedReturnTy == null) {
+                    val context = SearchContext.get(psi.project)
+                    val returnTy = context.withMultipleResults { psi.guessReturnType(context) }
+                    /**
+                     * todo optimize this bug solution
+                     * local function test()
+                     *      return test
+                     * end
+                     * -- will crash after type `test`
+                     */
+                    cachedReturnTy = if (returnTy is TyPsiFunction && returnTy.psi == psi) {
+                        null
+                    } else {
+                        returnTy
+                    }
                 }
 
-                returnTy
+                return cachedReturnTy
             }
 
-            override val varargTy: ITy?
+            override val variadicParamTy: ITy?
                 get() = psi.varargType
         }
     }
@@ -346,14 +474,13 @@ class TyPsiFunction(private val colonCall: Boolean, val psi: LuaFuncBodyOwner, f
     }
 }
 
-class TyDocPsiFunction(func: LuaDocFunctionTy) : TyFunction() {
-    private val main = FunSignature.create(false, func)
-    override val mainSignature: IFunSignature = main
+class TyDocPsiFunction(override val psi: LuaDocFunctionTy) : TyFunction(), IPsiTy<LuaDocFunctionTy> {
+    override val mainSignature: IFunSignature = TyDocFunSignature(psi, false)
     override val signatures: Array<IFunSignature> = emptyArray()
 }
 
 class TySerializedFunction(override val mainSignature: IFunSignature,
-                           override val signatures: Array<IFunSignature>,
+                           override val signatures: Array<out IFunSignature>,
                            flags: Int = 0) : TyFunction() {
     init {
         this.flags = flags

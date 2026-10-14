@@ -22,7 +22,7 @@ import com.intellij.codeInsight.lookup.LookupElementPresentation
 import com.intellij.psi.PsiElement
 import com.tang.intellij.lua.Constants
 import com.tang.intellij.lua.lang.LuaIcons
-import com.tang.intellij.lua.psi.LuaClassField
+import com.tang.intellij.lua.psi.LuaTypeField
 import com.tang.intellij.lua.psi.LuaPsiElement
 import com.tang.intellij.lua.search.SearchContext
 import com.tang.intellij.lua.ty.*
@@ -55,11 +55,7 @@ open class LuaTypeGuessableLookupElement(name: String, val psi: LuaPsiElement, p
         return typeString
     }
 
-    /**
-     * https://github.com/tangzx/IntelliJ-EmmyLua/issues/54
-     * @see [com.tang.intellij.lua.documentation.LuaDocumentationProvider]
-     */
-    override fun getObject(): Any {
+    override fun getObject(): LuaPsiElement {
         return psi
     }
 
@@ -68,7 +64,7 @@ open class LuaTypeGuessableLookupElement(name: String, val psi: LuaPsiElement, p
     }
 }
 
-class LuaFieldLookupElement(val fieldName: String, val field: LuaClassField, val ty:ITy?, bold: Boolean)
+class LuaFieldLookupElement(val fieldName: String, val field: LuaTypeField, val ty: ITy?, bold: Boolean)
     : LuaLookupElement(fieldName, bold, null), LuaDocumentationLookupElement {
 
     override fun getDocumentationElement(context: SearchContext): PsiElement? {
@@ -76,15 +72,12 @@ class LuaFieldLookupElement(val fieldName: String, val field: LuaClassField, val
             return field
         else {
             val clazz = TyUnion.getPerfectClass(type)
-            if (clazz != null) {
-                return clazz.findMember(fieldName, context)
-            }
+            return clazz?.findMember(context, fieldName)?.psi
         }
-        return null
     }
 
     val type: ITy by lazy {
-        ty ?: SearchContext.infer(field)
+        ty ?: field.guessType(SearchContext.get(field.project)) ?: Primitives.UNKNOWN
     }
 
     private fun lazyInit() {
@@ -97,6 +90,10 @@ class LuaFieldLookupElement(val fieldName: String, val field: LuaClassField, val
             lazyInit()
         super.renderElement(presentation)
     }
+
+    override fun getObject(): LuaPsiElement {
+        return field
+    }
 }
 
 class TyFunctionLookupElement(name: String,
@@ -104,12 +101,12 @@ class TyFunctionLookupElement(name: String,
                               private val signature: IFunSignature,
                               bold: Boolean,
                               colonStyle: Boolean,
-                              val ty: ITyFunction,
+                              val ty: ITy,
                               icon: Icon
 ) : LuaLookupElement(name, bold, icon) {
     /*init {
         val list = mutableListOf<String>()
-        signature.processArgs(null, colonStyle) { _, param ->
+        signature.processParameters(null, colonStyle) { _, param ->
             list.add(param.name)
             true
         }
@@ -117,13 +114,13 @@ class TyFunctionLookupElement(name: String,
         typeText = signature.returnTy.displayName
     }*/
 
-    private val lazyTypeText by lazy { signature.returnTy.displayName }
+    private val lazyTypeText by lazy { signature.returnTy?.displayName }
 
     override fun getTypeText() = lazyTypeText
 
     private val lazyItemText by lazy {
         val list = mutableListOf<String>()
-        signature.processArgs(null, colonStyle) { _, param ->
+        signature.processParameters(null, colonStyle) { _, param ->
             list.add(param.name)
             true
         }
@@ -135,13 +132,10 @@ class TyFunctionLookupElement(name: String,
     override fun getItemText() = myItemString ?: lazyItemText
 
     override fun hashCode(): Int {
-        return super.hashCode() * 31 * (signature.params.size + 1)
+        return super.hashCode() * 31 * ((signature.params?.size ?: 0) + 1)
     }
 
-    /**
-     * https://github.com/tangzx/IntelliJ-EmmyLua/issues/54
-     */
-    override fun getObject(): Any {
+    override fun getObject(): LuaPsiElement {
         return psi
     }
 }

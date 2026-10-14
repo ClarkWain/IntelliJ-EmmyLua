@@ -48,6 +48,12 @@ public class LuaDocTagClassImpl extends StubBasedPsiElementBase<LuaDocTagClassSt
 
   @Override
   @NotNull
+  public List<LuaDocGenericDef> getGenericDefList() {
+    return PsiTreeUtil.getChildrenOfTypeAsList(this, LuaDocGenericDef.class);
+  }
+
+  @Override
+  @NotNull
   public PsiElement getId() {
     return notNullChild(findChildByType(ID));
   }
@@ -99,15 +105,26 @@ public class LuaDocTagClassImpl extends StubBasedPsiElementBase<LuaDocTagClassSt
   }
 
   @Override
+  public boolean isShape() {
+    return LuaDocPsiImplUtilKt.isShape(this);
+  }
+
+  @Override
   @Nullable
-  public LuaDocClassNameRef getSuperClassNameRef() {
-    return PsiTreeUtil.getChildOfType(this, LuaDocClassNameRef.class);
+  public LuaDocTy getSuperClass() {
+    return PsiTreeUtil.getChildOfType(this, LuaDocTy.class);
   }
 
   @Override
   @Nullable
   public PsiElement getModule() {
     return findChildByType(TAG_NAME_MODULE);
+  }
+
+  @Override
+  @Nullable
+  public PsiElement getShape() {
+    return findChildByType(TAG_NAME_SHAPE);
   }
 
 }

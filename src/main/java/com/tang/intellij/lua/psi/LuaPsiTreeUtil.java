@@ -23,9 +23,13 @@ import com.intellij.psi.PsiWhiteSpace;
 import com.intellij.psi.search.PsiElementProcessor;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.Processor;
+import com.tang.intellij.lua.comment.psi.LuaDocGenericDef;
+import com.tang.intellij.lua.comment.psi.LuaDocTagClass;
+import com.tang.intellij.lua.psi.search.LuaShortNamesManager;
 import com.tang.intellij.lua.search.SearchContext;
 import com.tang.intellij.lua.ty.ITy;
-import com.tang.intellij.lua.ty.Ty;
+import com.tang.intellij.lua.ty.ITyClass;
+import com.tang.intellij.lua.ty.Primitives;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -73,13 +77,13 @@ public class LuaPsiTreeUtil {
         return t;
     }
 
-    public static <T extends PsiElement> T getParentOfType(@Nullable PsiElement element, @NotNull Class<T> aClass, @NotNull Class... skips) {
+    public static <T extends PsiElement> T findAncestorOfType(@Nullable PsiElement element, @NotNull Class<T> aClass, @NotNull Class... skips) {
         if (element == null) {
             return null;
         } else {
             element = element.getParent();
 
-            while(element != null && !aClass.isInstance(element) && PsiTreeUtil.instanceOf(element, skips)) {
+            while (element != null && (!aClass.isInstance(element) || PsiTreeUtil.instanceOf(element, skips))) {
                 if (element instanceof PsiFile) {
                     return null;
                 }
@@ -91,6 +95,50 @@ public class LuaPsiTreeUtil {
         }
     }
 
+    @Nullable
+    private static LuaDocGenericDef findOwnerClassGenericDef(LuaFuncBodyOwner<?> funcBodyOwner, String name) {
+        SearchContext context = SearchContext.Companion.get(funcBodyOwner.getProject());
+        ITy parentType = funcBodyOwner.guessParentType(context);
+
+        if (parentType instanceof ITyClass) {
+            ITyClass cls = (ITyClass) parentType;
+            LuaClass luaClass = LuaShortNamesManager.Companion.getInstance(context.getProject()).findClass(context, cls.getClassName());
+
+            if (luaClass instanceof LuaDocTagClass) {
+                LuaDocTagClass docTagClass = (LuaDocTagClass) luaClass;
+
+                for (LuaDocGenericDef genericDef : docTagClass.getGenericDefList()) {
+                    if (name.equals(genericDef.getId().getText()))
+                    {
+                        return genericDef;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    @Nullable
+    private static LuaDocGenericDef findOwnerClassGenericDef(@Nullable LuaCommentOwner commentOwner, String name) {
+        if (commentOwner instanceof LuaAssignStat) {
+            LuaAssignStat assignStat = (LuaAssignStat) commentOwner;
+            LuaExprList exprList = assignStat.getValueExprList();
+
+            if (exprList == null || exprList.getExpressionList().size() != 1) {
+                return null;
+            }
+
+            commentOwner = exprList.getExpressionList().get(0);
+        }
+
+        if (commentOwner instanceof LuaFuncBodyOwner<?>) {
+            LuaFuncBodyOwner<?> funcBodyOwner = (LuaFuncBodyOwner<?>) commentOwner;
+            return findOwnerClassGenericDef(funcBodyOwner, name);
+        }
+
+        return null;
+    }
 
     private static final Class[] WS = {PsiWhiteSpace.class};
     private static final Class[] WS_COMMENTS = {PsiWhiteSpace.class, PsiComment.class};
@@ -112,18 +160,39 @@ public class LuaPsiTreeUtil {
     }
 
     @NotNull
-    public static ITy findContextClass(PsiElement current) {
-        //todo module ty
-        while (true) {
-            if (current instanceof PsiFile)
-                break;
-            if (current instanceof LuaClassMethod) {
-                LuaClassMethod method = (LuaClassMethod) current;
-                return method.guessParentType(SearchContext.Companion.get(current.getProject()));
+    public static ITy findContextClass(SearchContext context, PsiElement current) {
+        ITy ownerTy = LuaScopedTypeTree.Companion.get(current.getContainingFile()).findOwner(context, current);
+        return ownerTy != null ? ownerTy : Primitives.Companion.getUNKNOWN();
+    }
+
+    @Nullable
+    public static LuaClass findClass(SearchContext context, String name) {
+        PsiElement contextElement = context.getElement();
+
+        if (contextElement != null) {
+            LuaScopedType scopedType = LuaScopedTypeTree.Companion.get(contextElement.getContainingFile()).findName(context, contextElement, name);
+
+            if (scopedType instanceof LuaClass) {
+                return (LuaClass) scopedType;
             }
-            current = current.getParent();
         }
-        return Ty.Companion.getUNKNOWN();
+
+        return LuaShortNamesManager.Companion.getInstance(context.getProject()).findClass(context, name);
+    }
+
+    @Nullable
+    public static LuaTypeDef findType(SearchContext context, String name) {
+        PsiElement contextElement = context.getElement();
+
+        if (contextElement != null) {
+            LuaScopedType scopedType = LuaScopedTypeTree.Companion.get(contextElement.getContainingFile()).findName(context, contextElement, name);
+
+            if (scopedType != null) {
+                return scopedType;
+            }
+        }
+
+        return LuaShortNamesManager.Companion.getInstance(context.getProject()).findType(context, name);
     }
 
     public static void processChildren(PsiElement parent, PsiElementProcessor<PsiElement> processor) {

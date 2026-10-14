@@ -19,7 +19,7 @@ import com.intellij.codeInsight.template.postfix.templates.PostfixTemplateWithEx
 import com.intellij.openapi.editor.Editor
 import com.intellij.psi.PsiElement
 import com.tang.intellij.lua.codeInsight.postfix.LuaPostfixUtils
-import com.tang.intellij.lua.psi.LuaExpr
+import com.tang.intellij.lua.psi.LuaExpression
 import com.tang.intellij.lua.refactoring.rename.LuaIntroduceVarHandler
 
 /**
@@ -35,6 +35,6 @@ class LuaLocalPostfixTemplate : PostfixTemplateWithExpressionSelector(
 ) {
     override fun expandForChooseExpression(psiElement: PsiElement, editor: Editor) {
         val handler = LuaIntroduceVarHandler()
-        handler.invoke(psiElement.project, editor, (psiElement as LuaExpr))
+        handler.invoke(psiElement.project, editor, (psiElement as LuaExpression<*>))
     }
 }

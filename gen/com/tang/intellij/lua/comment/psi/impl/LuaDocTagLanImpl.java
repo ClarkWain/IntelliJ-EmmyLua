@@ -35,8 +35,8 @@ public class LuaDocTagLanImpl extends ASTWrapperPsiElement implements LuaDocTagL
 
   @Override
   @Nullable
-  public LuaDocLanId getId() {
-    return PsiTreeUtil.getChildOfType(this, LuaDocLanId.class);
+  public PsiElement getProperty() {
+    return findChildByType(PROPERTY);
   }
 
 }

@@ -10,6 +10,7 @@ import com.intellij.psi.util.PsiTreeUtil;
 import static com.tang.intellij.lua.comment.psi.LuaDocTypes.*;
 import com.intellij.extapi.psi.ASTWrapperPsiElement;
 import com.tang.intellij.lua.comment.psi.*;
+import com.tang.intellij.lua.ty.TyGenericParameter;
 
 public class LuaDocGenericDefImpl extends ASTWrapperPsiElement implements LuaDocGenericDef {
 
@@ -28,15 +29,15 @@ public class LuaDocGenericDefImpl extends ASTWrapperPsiElement implements LuaDoc
   }
 
   @Override
-  @Nullable
-  public LuaDocClassNameRef getClassNameRef() {
-    return PsiTreeUtil.getChildOfType(this, LuaDocClassNameRef.class);
+  @NotNull
+  public PsiElement getId() {
+    return notNullChild(findChildByType(ID));
   }
 
   @Override
   @NotNull
-  public PsiElement getId() {
-    return notNullChild(findChildByType(ID));
+  public TyGenericParameter getType() {
+    return LuaDocPsiImplUtilKt.getType(this);
   }
 
   @Override
@@ -60,6 +61,12 @@ public class LuaDocGenericDefImpl extends ASTWrapperPsiElement implements LuaDoc
   @Override
   public int getTextOffset() {
     return LuaDocPsiImplUtilKt.getTextOffset(this);
+  }
+
+  @Override
+  @Nullable
+  public LuaDocTy getSuperClass() {
+    return PsiTreeUtil.getChildOfType(this, LuaDocTy.class);
   }
 
 }

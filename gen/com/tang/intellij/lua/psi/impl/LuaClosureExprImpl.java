@@ -8,18 +8,17 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementVisitor;
 import com.intellij.psi.util.PsiTreeUtil;
 import static com.tang.intellij.lua.psi.LuaTypes.*;
+import com.tang.intellij.lua.stubs.LuaClosureExprStub;
 import com.tang.intellij.lua.psi.*;
 import com.tang.intellij.lua.search.SearchContext;
 import com.tang.intellij.lua.ty.ITy;
-import com.tang.intellij.lua.stubs.LuaClosureExprStub;
 import com.intellij.psi.stubs.IStubElementType;
 import com.intellij.psi.tree.IElementType;
-import com.tang.intellij.lua.stubs.LuaExprStub;
 
-public class LuaClosureExprImpl extends LuaClosureExprMixin implements LuaClosureExpr {
+public class LuaClosureExprImpl extends LuaExprMixin<LuaClosureExprStub> implements LuaClosureExpr {
 
-  public LuaClosureExprImpl(@NotNull LuaClosureExprStub stub, @NotNull IStubElementType<?, ?> nodeType) {
-    super(stub, nodeType);
+  public LuaClosureExprImpl(@NotNull LuaClosureExprStub stub, @NotNull IStubElementType<?, ?> type) {
+    super(stub, type);
   }
 
   public LuaClosureExprImpl(@NotNull ASTNode node) {
@@ -34,27 +33,34 @@ public class LuaClosureExprImpl extends LuaClosureExprMixin implements LuaClosur
     visitor.visitClosureExpr(this);
   }
 
+  @Override
   public void accept(@NotNull PsiElementVisitor visitor) {
     if (visitor instanceof LuaVisitor) accept((LuaVisitor)visitor);
     else super.accept(visitor);
   }
 
   @Override
-  @Nullable
+  @NotNull
   public LuaFuncBody getFuncBody() {
-    return PsiTreeUtil.getStubChildOfType(this, LuaFuncBody.class);
+    return notNullChild(PsiTreeUtil.getStubChildOfType(this, LuaFuncBody.class));
   }
 
   @Override
   @NotNull
-  public List<LuaParamNameDef> getParamNameDefList() {
-    return LuaPsiImplUtilKt.getParamNameDefList(this);
+  public List<LuaParamDef> getParamDefList() {
+    return LuaPsiImplUtilKt.getParamDefList(this);
+  }
+
+  @Override
+  @Nullable
+  public ITy guessReturnType(@NotNull SearchContext context) {
+    return LuaPsiImplUtilKt.guessReturnType(this, context);
   }
 
   @Override
   @NotNull
-  public ITy guessReturnType(@NotNull SearchContext searchContext) {
-    return LuaPsiImplUtilKt.guessReturnType(this, searchContext);
+  public ITy guessParentType(@NotNull SearchContext context) {
+    return LuaPsiImplUtilKt.guessParentType(this, context);
   }
 
   @Override

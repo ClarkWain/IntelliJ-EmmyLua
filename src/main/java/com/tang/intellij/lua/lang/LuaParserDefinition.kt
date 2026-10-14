@@ -80,6 +80,7 @@ class LuaParserDefinition : ParserDefinition {
                 || type === LuaElementType.CLASS_DEF
                 || type === LuaElementType.CLASS_FIELD_DEF
                 || type === LuaElementType.TYPE_DEF
+                || type === LuaElementType.DOC_NOT
                 || type === LuaElementType.DOC_ALIAS) {
             LuaDocTypes.Factory.createElement(node)
         } else LuaTypes.Factory.createElement(node)
@@ -90,6 +91,7 @@ class LuaParserDefinition : ParserDefinition {
         val COMMENTS = TokenSet.create(
                 LuaTypes.SHORT_COMMENT,
                 LuaTypes.BLOCK_COMMENT,
+                LuaTypes.DOC_BLOCK_COMMENT,
                 LuaTypes.DOC_COMMENT,
                 LuaTypes.REGION,
                 LuaTypes.ENDREGION
@@ -115,11 +117,11 @@ class LuaParserDefinition : ParserDefinition {
                 LuaTypes.UNTIL,
                 LuaTypes.WHILE,
 
-                //lua5.3
+                // Lua 5.2+
                 LuaTypes.DOUBLE_COLON,
-                LuaTypes.GOTO
+                LuaTypes.GOTO,
         )
-        val LUA52_BIN_OP_SET = TokenSet.create(
+        val LUA53_BIN_OP_SET = TokenSet.create(
                 LuaTypes.BIT_AND,
                 LuaTypes.BIT_LTLT,
                 LuaTypes.BIT_OR,
@@ -127,7 +129,7 @@ class LuaParserDefinition : ParserDefinition {
                 LuaTypes.BIT_TILDE,
                 LuaTypes.DOUBLE_DIV
         )
-        val LUA52_UNARY_OP_SET = TokenSet.create(
+        val LUA53_UNARY_OP_SET = TokenSet.create(
                 LuaTypes.BIT_TILDE
         )
         val PRIMITIVE_TYPE_SET = TokenSet.create(
@@ -139,8 +141,10 @@ class LuaParserDefinition : ParserDefinition {
                 LuaDocTypes.TAG_NAME_PARAM,
                 LuaDocTypes.TAG_NAME_RETURN,
                 LuaDocTypes.TAG_NAME_CLASS,
+                LuaDocTypes.TAG_NAME_SHAPE,
                 LuaDocTypes.TAG_NAME_MODULE,
                 LuaDocTypes.TAG_NAME_TYPE,
+                LuaDocTypes.TAG_NAME_NOT,
                 LuaDocTypes.TAG_NAME_FIELD,
                 LuaDocTypes.TAG_NAME_LANGUAGE,
                 LuaDocTypes.TAG_NAME_OVERLOAD,
@@ -162,15 +166,15 @@ class LuaParserDefinition : ParserDefinition {
 
 fun createType(string: String): IElementType {
     return when (string) {
-        "FUNC_DEF" -> LuaElementType.FUNC_DEF
-        "CLASS_METHOD_DEF" -> LuaElementType.CLASS_METHOD_DEF
+        "FUNC_DEF_STAT" -> LuaElementType.FUNC_DEF_STAT
+        "CLASS_METHOD_DEF_STAT" -> LuaElementType.CLASS_METHOD_DEF_STAT
         "BLOCK" -> LuaElementType.BLOCK
         "TABLE_EXPR" -> LuaElementType.TABLE
         "TABLE_FIELD" -> LuaElementType.TABLE_FIELD
         "INDEX_EXPR" -> LuaElementType.INDEX
         "NAME_EXPR" -> LuaElementType.NAME_EXPR
-        "NAME_DEF" -> LuaElementType.NAME_DEF
-        "PARAM_NAME_DEF" -> LuaElementType.PARAM_NAME_DEF
+        "LOCAL_DEF" -> LuaElementType.LOCAL_DEF
+        "PARAM_DEF" -> LuaElementType.PARAM_DEF
         "LITERAL_EXPR" -> LuaElementType.LITERAL_EXPR
 
         "CALL_EXPR" -> LuaElementTypes.CALL_EXPR
@@ -178,12 +182,11 @@ fun createType(string: String): IElementType {
         "LIST_ARGS" -> LuaElementTypes.LIST_ARGS
 
         "EXPR_LIST" -> LuaElementTypes.EXPR_LIST
-        "NAME_LIST" -> LuaElementTypes.NAME_LIST
-        "LOCAL_DEF" -> LuaElementTypes.LOCAL_DEF
+        "LOCAL_DEF_STAT" -> LuaElementTypes.LOCAL_DEF_STAT
         "ASSIGN_STAT" -> LuaElementTypes.ASSIGN_STAT
         "VAR_LIST" -> LuaElementTypes.VAR_LIST
         "PAREN_EXPR" -> LuaElementTypes.PAREN_EXPR
-        "LOCAL_FUNC_DEF" -> LuaElementTypes.LOCAL_FUNC_DEF
+        "LOCAL_FUNC_DEF_STAT" -> LuaElementTypes.LOCAL_FUNC_DEF_STAT
         "CLOSURE_EXPR" -> LuaElementTypes.CLOSURE_EXPR
         "FUNC_BODY" -> LuaElementTypes.FUNC_BODY
         "CLASS_METHOD_NAME" -> LuaElementTypes.CLASS_METHOD_NAME
@@ -193,6 +196,9 @@ fun createType(string: String): IElementType {
         "IF_STAT" -> LuaElementTypes.IF_STAT
         "EXPR_STAT" -> LuaElementTypes.EXPR_STAT
 
+        "FOR_A_STAT" -> LuaElementTypes.FOR_A_STAT
+        "FOR_B_STAT" -> LuaElementTypes.FOR_B_STAT
+
         "UNARY_EXPR" -> LuaElementTypes.UNARY_EXPR
         "BINARY_EXPR" -> LuaElementTypes.BINARY_EXPR
 
@@ -201,7 +207,7 @@ fun createType(string: String): IElementType {
 }
 
 fun createToken(string: String): IElementType {
-    return if (string == "DOC_COMMENT") LuaElementType.DOC_COMMENT else LuaTokenType(string)
+    return if (string == "DOC_COMMENT" || string == "DOC_BLOCK_COMMENT") LuaElementType.DOC_COMMENT else LuaTokenType(string)
 }
 
 fun createDocType(string: String): IElementType {
@@ -211,7 +217,9 @@ fun createDocType(string: String): IElementType {
         "TABLE_DEF" -> LuaElementType.DOC_TABLE_DEF
         "TABLE_FIELD" -> LuaElementType.DOC_TABLE_FIELD_DEF
         "TAG_ALIAS" -> LuaElementType.DOC_ALIAS
-        else -> if ("TAG_TYPE" == string) LuaElementType.TYPE_DEF else LuaDocElementType(string)
+        "TAG_TYPE" -> LuaElementType.TYPE_DEF
+        "TAG_NOT" -> LuaElementType.DOC_NOT
+        else -> LuaDocElementType(string)
     }
 
 }

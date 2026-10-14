@@ -41,18 +41,18 @@ class LuaClassIndex : StringStubIndexExtension<LuaDocTagClass>() {
     companion object {
         val instance = LuaClassIndex()
 
-        fun find(name: String, context: SearchContext): LuaDocTagClass? {
+        fun find(context: SearchContext, name: String): LuaDocTagClass? {
             if (context.isDumb)
                 return null
-            return find(name, context.project, context.scope)
+            return find(context.project, name, context.scope)
         }
 
-        fun find(name: String, project: Project, scope: GlobalSearchScope): LuaDocTagClass? {
+        fun find(project: Project, name: String, scope: GlobalSearchScope): LuaDocTagClass? {
             var tagClass: LuaDocTagClass? = null
-            process(name, project, scope, Processor {
+            process(name, project, scope) {
                 tagClass = it
                 false
-            })
+            }
             return tagClass
         }
 
@@ -65,7 +65,9 @@ class LuaClassIndex : StringStubIndexExtension<LuaDocTagClass>() {
             val scope = ProjectAndLibrariesScope(project)
             val allKeys = instance.getAllKeys(project)
             for (key in allKeys) {
-                val ret = process(key, project, scope, Processor { false })
+                val ret = process(key, project, scope) {
+                    false
+                }
                 if (!ret && !processor.process(key))
                     return false
             }

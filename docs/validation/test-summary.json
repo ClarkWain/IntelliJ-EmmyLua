@@ -1,0 +1,358 @@
+{
+  "target": "AI-252.28238.7.2523.14688667",
+  "pluginVersion": "1.5.0-luanalysis-IDEA2025.2",
+  "date": "2026-10-14",
+  "artifact": "IntelliJ-EmmyLua-1.5.0-luanalysis-IDEA2025.2.zip",
+  "sha256": "cfb0ddb7f21b3442f7549939c55a4d270d15da0f674220d60685cfbd4e081ecb",
+  "totals": {
+    "tests": 109,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "suites": [
+    {
+      "name": "CodeStyleTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "testCodeStyleConfigurableIdentity",
+        "test format multiple statements in one lines",
+        "test keep multiple statements in one line"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.completion.ParsingTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "test parse chinese non-java characters"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.completion.TestAlias",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "test alias"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.completion.TestArgHistory",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "test arg history 1"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.completion.TestCompletion",
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "test table member non-completion",
+        "testAnonymous",
+        "testParamCompletion",
+        "testGlobalCompletion",
+        "test attribute completion",
+        "testAnnotationDict",
+        "testLocalCompletion",
+        "testSelfCompletion",
+        "test doc table 1",
+        "testFieldCompletion",
+        "testAnnotationFun",
+        "testAnnotationArray",
+        "testAnnotation"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.completion.TestModule",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "test module type",
+        "test module field completion",
+        "test module members visibility"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.completion.TestMultipleResults",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "test multiple results 1"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.completion.TestPrimitiveLiteral",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "test boolean literals",
+        "test number literals",
+        "test string literals"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.completion.TestSelf",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "test self"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.completion.TestShouldBe",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "test issue #298"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.completion.TestSnippet",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "test snippet"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.editor.IssueTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "test issue #359",
+        "test issue #337@1",
+        "test issue #337@2"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.generic.GenericTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "test generic 1",
+        "test generic 2",
+        "test generic 3",
+        "test custom iterator"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.inspections.ConcurrentResolutionTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "testLocalAssignmentResolvesDuringParallelInspections"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.inspections.DuplicateTypeTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "testDuplicateTypes"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.inspections.IllegalAliasTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "testIllegalAlias"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.inspections.IllegalInheritanceTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "testIllegalInheritance"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.inspections.LanguageLevelTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "testAllowLua54Features",
+        "testDisallowLua53Features",
+        "testAllowLua53Features",
+        "testDisallowLua54Features"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.inspections.LocalNameShadowedTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "testLocalNameHidesPrevious"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.inspections.ReturnTypeTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "test explicit return void",
+        "test matching return type",
+        "test return type mismatch",
+        "test non return",
+        "test implicit return void"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.inspections.TypeSafetyTest",
+      "tests": 47,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "testFunctionGenerics",
+        "testPoorlyNamedParams",
+        "testGlobalUsage",
+        "testOps",
+        "testTrailingType",
+        "testStringLiterals",
+        "testAlias",
+        "testClass",
+        "testShape",
+        "testSelf",
+        "testIndexedFields",
+        "testFunctionGenericsScope",
+        "testUnknownStrict",
+        "testUnknown",
+        "testLambdaParams",
+        "testFunctionCovariance",
+        "testBoolean",
+        "testVarargs",
+        "testOverloads",
+        "testOverrides",
+        "testGenericClassScope",
+        "testGenericClassCovariance",
+        "testGenericSelf",
+        "testStrictNil",
+        "testDocTables",
+        "testRequire",
+        "testGenericAlias",
+        "testFunctionPartiallyTyped",
+        "testModules",
+        "testVarreturn",
+        "testClassFromAnotherFile",
+        "testGlobalDefinitions",
+        "testFunctionMultipleReturns",
+        "testGenericClassConstraints",
+        "testTypeCasts",
+        "testFunctionOptionalParameters",
+        "testModuleSupportUnavailableLua53",
+        "testGenericClassFields",
+        "testTables",
+        "testUnions",
+        "testSnippet",
+        "testNumbers",
+        "testLambdaClass",
+        "testFunctionClosures",
+        "testRecursiveAlias",
+        "testLocalDefAssignment",
+        "testNonStrictNil"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.refactoring.MoveFileTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "testMoveFile"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.refactoring.RenameTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "test rename file"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.structure.StructureViewTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "testStructureViewBase"
+      ]
+    },
+    {
+      "name": "com.tang.intellij.test.vararg.VarargTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "test vararg 1",
+        "test vararg 2"
+      ]
+    },
+    {
+      "name": "Issues",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "test148",
+        "test54",
+        "test81",
+        "test82",
+        "test84",
+        "test85",
+        "test87"
+      ]
+    }
+  ]
+}

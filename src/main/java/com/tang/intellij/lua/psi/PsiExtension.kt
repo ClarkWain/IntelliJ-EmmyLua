@@ -16,24 +16,20 @@
 
 package com.tang.intellij.lua.psi
 
-import com.intellij.extapi.psi.StubBasedPsiElementBase
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.Key
-import com.intellij.psi.PsiElement
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.util.Processor
 import com.tang.intellij.lua.comment.LuaCommentUtil
-import com.tang.intellij.lua.comment.psi.LuaDocGenericDef
 import com.tang.intellij.lua.comment.psi.LuaDocTagClass
-import com.tang.intellij.lua.comment.psi.LuaDocTagOverload
+import com.tang.intellij.lua.comment.psi.LuaDocTagGenericList
 import com.tang.intellij.lua.comment.psi.api.LuaComment
+import com.tang.intellij.lua.comment.psi.impl.LuaDocTagTypeImpl
 import com.tang.intellij.lua.lang.type.LuaString
-import com.tang.intellij.lua.psi.search.LuaShortNamesManager
 import com.tang.intellij.lua.search.SearchContext
-import com.tang.intellij.lua.stubs.LuaFuncBodyOwnerStub
+import com.tang.intellij.lua.stubs.index.LuaClassMemberIndex
 import com.tang.intellij.lua.ty.*
 
 /**
@@ -62,95 +58,129 @@ import com.tang.intellij.lua.ty.*
  * local tbl = {
  *     foo = ?? -- foo should be type of `Bar`
  * }
+ *
+ * 4.
+ * ---@type fun(a: number, b: string): void
+ * return function(a, b) end
  */
-private fun LuaExpr.shouldBeInternal(context: SearchContext): ITy {
+private fun LuaExpression<*>.shouldBeInternal(context: SearchContext): ITy? {
     val p1 = parent
     if (p1 is LuaExprList) {
         val p2 = p1.parent
         if (p2 is LuaAssignStat) {
-            val receiver = p2.varExprList.getExprAt(0)
+            val receiver = p2.varExprList.getExpressionAt(0)
             if (receiver != null)
-                return infer(receiver, context)
-        } else if (p2 is LuaLocalDef) {
-            val receiver = p2.nameList?.nameDefList?.getOrNull(0)
+                return infer(context, receiver)
+        } else if (p2 is LuaLocalDefStat) {
+            val receiver = p2.localDefList.firstOrNull()
             if (receiver != null)
-                return infer(receiver, context)
+                return infer(context, receiver)
+        } else if (p2 is LuaReturnStat) {
+            val returnType = PsiTreeUtil.getChildrenOfTypeAsList(p2.comment, LuaDocTagTypeImpl::class.java).firstOrNull()
+
+            if (returnType != null) {
+                return if (context.supportsMultipleResults) {
+                    returnType.getType()
+                } else returnType.getType(context.index)
+            }
+
+            val tagReturn = PsiTreeUtil.getParentOfType(p2, LuaFuncBodyOwner::class.java)?.tagReturn
+
+            if (tagReturn != null) {
+                return if (context.supportsMultipleResults) {
+                    tagReturn.getType()
+                } else {
+                    TyMultipleResults.getResult(context, tagReturn.getType(), context.index)
+                }
+            }
         }
     } else if (p1 is LuaArgs) {
         val p2 = p1.parent
         if (p2 is LuaCallExpr) {
             val idx = p1.getIndexFor(this)
-            val fTy = infer(p2.expr, context)
-            var ret: ITy = Ty.UNKNOWN
-            fTy.each {
-                if (it is ITyFunction) {
-                    it.process { signature ->
-                        var solvedSignature = signature
-                        val substitutor = p2.createSubstitutor(solvedSignature, context)
-                        if (substitutor != null) solvedSignature = solvedSignature.substitute(substitutor)
+            val fTy = infer(context, p2.expression)
 
-                        ret = ret.union(solvedSignature.getParamTyEx(p2, idx))
-                        true
+            if (fTy != null) {
+                var ret: ITy = Primitives.VOID
+                Ty.eachResolved(context, fTy) {
+                    if (it is ITyFunction) {
+                        val matched = it.matchSignature(context, p2)?.substitutedSignature
+                        if (matched != null) {
+                            ret = ret.union(context, matched.getArgTy(idx))
+                        } else if (this is LuaTableExpr) {
+                            // An unfinished table does not yet satisfy an overload's shape.
+                            // Keep its expected fields available while the user is completing it.
+                            it.processSignatures(context) { signature ->
+                                val substituted = signature.substitute(context, p2.createSubstitutor(signature))
+                                ret = ret.union(context, substituted.getArgTy(idx))
+                                true
+                            }
+                        } else {
+                            val sig = it.mainSignature.substitute(context, p2.createSubstitutor(it.mainSignature))
+                            ret = ret.union(context, sig.getArgTy(idx))
+                        }
                     }
                 }
+                return ret
             }
-            return ret
         }
     } else if (p1 is LuaTableField) {
-        val fieldName = p1.name
         val tbl = p1.parent
-        if (fieldName != null && tbl is LuaTableExpr) {
-            var fieldType: ITy = Ty.UNKNOWN
+
+        if (tbl is LuaTableExpr) {
             val tyTbl = tbl.shouldBe(context)
-            tyTbl.eachTopClass(Processor { cls ->
-                cls.findMemberType(fieldName, context)?.let { fieldType = fieldType.union(it) }
-                true
-            })
+
+            if (tyTbl == null) {
+                return null
+            }
+
+            var fieldType: ITy = Primitives.VOID
+
+            Ty.eachResolved(context, tyTbl) { type ->
+                val classFieldTy = p1.name?.let {
+                    type.guessMemberType(context, it)
+                } ?: p1.guessIndexType(context)?.let {
+                    type.guessIndexerType(context, it)
+                }
+
+                if (classFieldTy != null) {
+                    fieldType = fieldType.union(context, classFieldTy)
+                }
+            }
+
             return fieldType
         }
     }
-    return Ty.UNKNOWN
+    return null
 }
 
-fun LuaExpr.shouldBe(context: SearchContext): ITy {
-    val ty = shouldBeInternal(context)
-    return TyAliasSubstitutor.substitute(ty, context)
-}
-
-/**
- * 获取所在的位置
- */
-fun LuaLocalDef.getIndexFor(psi: LuaNameDef): Int {
-    var idx = 0
-    val nameList = nameList
-    val stub = nameList?.stub
-    if (stub != null) {
-        idx = stub.childrenStubs.indexOf(psi.stub)
-    } else {
-        LuaPsiTreeUtilEx.processChildren(nameList, Processor{
-            if (it is LuaNameDef) {
-                if (it == psi)
-                    return@Processor false
-                idx++
-            }
-            return@Processor true
-        })
+fun LuaExpression<*>.shouldBe(context: SearchContext): ITy? {
+    return shouldBeInternal(context)?.let {
+        TyAliasSubstitutor.substitute(context, it)
     }
-    return idx
 }
 
-val LuaNameDef.docTy: ITy? get() {
+fun LuaLocalDefStat.getIndexFor(localDef: LuaLocalDef): Int {
+    val stub = localDef.stub
+    return if (stub != null) {
+        stub.childrenStubs.indexOf(localDef.stub)
+    } else {
+        localDefList.indexOf(localDef)
+    }
+}
+
+val LuaLocalDef.docTy: ITy? get() {
     val stub = stub
     if (stub != null)
         return stub.docTy
 
-    val localDef = PsiTreeUtil.getParentOfType(this, LuaLocalDef::class.java)
-    return localDef?.comment?.ty
+    val localStat = PsiTreeUtil.getParentOfType(this, LuaLocalDefStat::class.java)
+    return localStat?.comment?.ty
 }
 
-fun LuaAssignStat.getIndexFor(psi: LuaExpr): Int {
+fun LuaAssignStat.getIndexFor(psi: LuaExpression<*>): Int {
     var idx = 0
-    val stub = valueExprList?.stub
+    val stub = varExprList.stub
     if (stub != null) {
         val children = stub.childrenStubs
         for (i in 0 until children.size) {
@@ -160,124 +190,114 @@ fun LuaAssignStat.getIndexFor(psi: LuaExpr): Int {
             }
         }
     } else {
-        LuaPsiTreeUtilEx.processChildren(this.varExprList, Processor{
-            if (it is LuaExpr) {
+        LuaPsiTreeUtilEx.processChildren(varExprList) {
+            if (it is LuaExpression<*>) {
                 if (it == psi)
-                    return@Processor false
+                    return@processChildren false
                 idx++
             }
-            return@Processor true
-        })
+            return@processChildren true
+        }
     }
     return idx
 }
 
-fun LuaAssignStat.getExprAt(index:Int) : LuaExpr? {
-    val list = this.varExprList.exprList
+fun LuaAssignStat.getLastIndex(): Int {
+    val stub = valueExprList?.stub
+    if (stub != null) {
+        return stub.childrenStubs.size
+    }
+    var count = 0
+    LuaPsiTreeUtilEx.processChildren(this.varExprList) {
+        if (it is LuaExpression<*>) {
+            count++
+        }
+        return@processChildren true
+    }
+    return count - 1
+}
+
+fun LuaAssignStat.getExpressionAt(index:Int) : LuaExpression<*>? {
+    val list = this.varExprList.expressionList
     return list.getOrNull(index)
 }
 
-fun LuaArgs.getIndexFor(psi: LuaExpr): Int {
+fun LuaArgs.getIndexFor(psi: LuaExpression<*>): Int {
     if (this is LuaSingleArg)
         return 0
     var idx = 0
-    LuaPsiTreeUtilEx.processChildren(this, Processor {
-        if (it is LuaExpr) {
+    LuaPsiTreeUtilEx.processChildren(this) {
+        if (it is LuaExpression<*>) {
             if (it == psi)
-                return@Processor false
+                return@processChildren false
             idx++
         }
-        return@Processor true
-    })
+        return@processChildren true
+    }
     return idx
 }
 
-val LuaExprList.exprStubList: List<LuaExpr> get() {
-    return PsiTreeUtil.getStubChildrenOfTypeAsList(this, LuaExpr::class.java)
+val LuaExprList.expressionStubList: List<LuaExpression<*>> get() {
+    return PsiTreeUtil.getStubChildrenOfTypeAsList(this, LuaExpression::class.java)
 }
 
-fun LuaExprList.getExprAt(idx: Int): LuaExpr? {
-    return exprStubList.getOrNull(idx)
+fun LuaExprList.getExpressionAt(idx: Int): LuaExpression<*>? {
+    return expressionStubList.getOrNull(idx)
 }
 
-fun LuaExprList.guessType(context: SearchContext):ITy {
-    val exprList = exprStubList
-    return if (exprList.size == 1)
+fun LuaExprList.guessType(context: SearchContext): ITy? {
+    val exprList = expressionStubList
+    return if (exprList.size == 1) {
         exprList.first().guessType(context)
-    else {
+    } else {
         val list = mutableListOf<ITy>()
-        exprList.forEach { list.add(it.guessType(context)) }
-        TyTuple(list)
+        var variadic = false
+        exprList.forEachIndexed { index, luaExpr ->
+            val ty = luaExpr.guessType(context) ?: Primitives.UNKNOWN
+
+            if (ty is TyMultipleResults) {
+                if (index == exprList.size - 1) {
+                    list.addAll(ty.list)
+                    variadic = ty.variadic
+                } else {
+                    list.addAll(ty.list.take(1))
+                }
+            } else {
+                list.add(ty)
+            }
+        }
+        TyMultipleResults(list, variadic)
     }
 }
 
-fun LuaParametersOwner.getIndexFor(paramNameDef: LuaParamNameDef): Int {
-    val list = this.paramNameDefList
-    list?.indices?.filter { list[it].name == paramNameDef.name }?.forEach { return it }
+fun LuaParametersOwner<*>.getIndexFor(paramDef: LuaParamDef): Int {
+    val list = this.paramDefList
+    list?.indices?.filter { list[it].name == paramDef.name }?.forEach { return it }
     return 0
 }
 
-fun LuaLocalDef.getExprFor(nameDef: LuaNameDef): LuaExpr? {
-    val nameList = this.nameList ?: return null
-    val exprList = this.exprList ?: return null
-
-    var next = nameList.firstChild
-    var idx = 0
-    var found = false
-    while (next != null) {
-        if (next is LuaNameDef) {
-            if (next == nameDef) {
-                found = true
-                break
-            }
-            idx++
-        }
-        next = next.nextSibling
-    }
-    if (!found) return null
-    return exprList.getExprAt(idx)
-}
-
-val LuaParamNameDef.owner: LuaParametersOwner
+val LuaParamDef.owner: LuaParametersOwner<*>
     get() = PsiTreeUtil.getParentOfType(this, LuaParametersOwner::class.java)!!
 
-val LuaFuncBodyOwner.overloads: Array<IFunSignature> get() {
-    if (this is StubBasedPsiElementBase<*>) {
-        val stub = this.stub
-        if (stub is LuaFuncBodyOwnerStub<*>) {
-            return stub.overloads
-        }
-    }
-
-    val list = mutableListOf<IFunSignature>()
-    if (this is LuaCommentOwner) {
-        val comment = comment
-        if (comment != null) {
-            val children = PsiTreeUtil.findChildrenOfAnyType(comment, LuaDocTagOverload::class.java)
-            val colonCall = this is LuaClassMethodDef && !this.isStatic
-            children.forEach {
-                val fty = it.functionTy
-                if (fty != null)
-                    list.add(FunSignature.create(colonCall, fty))
-            }
-        }
-    }
-    return list.toTypedArray()
+val LuaFuncBodyOwner<*>.overloads: Array<IFunSignature> get() {
+    return stub?.overloads ?: (this as? LuaCommentOwner)?.comment?.overloads ?: arrayOf()
 }
 
-val LuaFuncBodyOwner.tyParams: Array<TyParameter> get() {
-    if (this is StubBasedPsiElementBase<*>) {
-        val stub = this.stub
-        if (stub is LuaFuncBodyOwnerStub<*>) {
-            return stub.tyParams
+val LuaFuncBodyOwner<*>.genericParams: Array<TyGenericParameter>? get() {
+    val stub = this.stub
+
+    if (stub != null) {
+        return stub.genericParams
+    }
+
+    val list = mutableListOf<TyGenericParameter>()
+
+    comment?.findTags(LuaDocTagGenericList::class.java)?.forEach {
+        it.genericDefList.forEach { genericDef ->
+            list.add(TyGenericParameter(genericDef))
         }
     }
 
-    val list = mutableListOf<TyParameter>()
-    if (this is LuaCommentOwner) {
-        val genericDefList = comment?.findTags(LuaDocGenericDef::class.java)
-        genericDefList?.forEach { it.name?.let { name -> list.add(TyParameter(name, it.classNameRef?.text)) } }
-    }
     return list.toTypedArray()
 }
 
@@ -338,28 +358,30 @@ val LuaLiteralExpr.numberValue: Float get() {
 }
 
 val LuaComment.docTy: ITy? get() {
-    return this.tagType?.type
+    return this.tagType?.getType()
 }
 
 val LuaComment.ty: ITy? get() {
     val cls = tagClass?.type
-    return cls ?: tagType?.type
+    return cls ?: tagType?.getType()
+}
+
+val LuaDocTagClass.overloads: Array<IFunSignature>? get() {
+    return LuaCommentUtil.findContainer(this).overloads
 }
 
 val LuaDocTagClass.aliasName: String? get() {
     val owner = LuaCommentUtil.findOwner(this)
     when (owner) {
         is LuaAssignStat -> {
-            val expr = owner.valueExprList?.getExprAt(0)
-            if (expr is LuaTableExpr)
-                return getTableTypeName(expr)
-            /*val expr = owner.getExprAt(0)
+            val expr = owner.getExpressionAt(0)
             if (expr is LuaNameExpr)
-                return getGlobalTypeName(expr)*/
+                return getGlobalTypeName(expr)
         }
 
-        is LuaLocalDef -> {
-            val expr = owner.exprList?.getExprAt(0)
+        is LuaLocalDefStat -> {
+            val expr = owner.exprList?.getExpressionAt(0)
+
             if (expr is LuaTableExpr)
                 return getTableTypeName(expr)
         }
@@ -380,12 +402,11 @@ val LuaIndexExpr.docTy: ITy? get() {
         assignStat?.comment?.docTy
 }
 
-val LuaIndexExpr.prefixExpr: LuaExpr get() {
-    return PsiTreeUtil.getStubChildOfType(this, LuaExpr::class.java)!!
-    //return firstChild as LuaExpr
+val LuaIndexExpr.prefixExpression: LuaExpression<*> get() {
+    return PsiTreeUtil.getStubChildOfType(this, LuaExpression::class.java)!!
 }
 
-val LuaExpr.assignStat: LuaAssignStat? get() {
+val LuaExpression<*>.assignStat: LuaAssignStat? get() {
     val p1 = PsiTreeUtil.getStubOrPsiParent(this)
     if (p1 is LuaVarList) {
         val p2 = PsiTreeUtil.getStubOrPsiParent(p1)
@@ -407,8 +428,8 @@ private val KEY_SHOULD_CREATE_STUB = Key.create<CachedValue<Boolean>>("lua.shoul
 // { field = valueExpr }
 // { valueExpr }
 // { ["field"] = valueExpr }
-val LuaTableField.valueExpr: LuaExpr? get() {
-    val list = PsiTreeUtil.getStubChildrenOfTypeAsList(this, LuaExpr::class.java)
+val LuaTableField.valueExpression: LuaExpression<*>? get() {
+    val list = PsiTreeUtil.getStubChildrenOfTypeAsList(this, LuaExpression::class.java)
     return list.lastOrNull()
 }
 
@@ -418,11 +439,6 @@ val LuaTableField.shouldCreateStub: Boolean get() =
     }
 
 private val LuaTableField.innerShouldCreateStub: Boolean get() {
-    if (id == null && idExpr == null)
-        return false
-    if (name == null)
-        return false
-
     val tableExpr = PsiTreeUtil.getStubOrPsiParentOfType(this, LuaTableExpr::class.java)
     tableExpr ?: return false
     return tableExpr.shouldCreateStub
@@ -448,51 +464,43 @@ private val LuaTableExpr.innerShouldCreateStub: Boolean get() {
     }
 }
 
-private val KEY_FORWARD = Key.create<CachedValue<PsiElement>>("lua.lua_func_def.forward")
-
-val LuaFuncDef.forwardDeclaration: PsiElement? get() {
-    return CachedValuesManager.getCachedValue(this, KEY_FORWARD) {
-        val refName = name
-        val ret = if (refName == null) null else resolveLocal(refName, this)
-        CachedValueProvider.Result.create(ret, this)
-    }
-}
-
-val LuaCallExpr.prefixExpr: LuaExpr? get() {
-    val expr = this.expr
+val LuaCallExpr.prefixExpression: LuaExpression<*>? get() {
+    val expr = this.expression
     if (expr is LuaIndexExpr) {
-        return expr.prefixExpr
+        return expr.prefixExpression
     }
     return null
 }
 
-val LuaCallExpr.argList: List<LuaExpr> get() {
+val LuaCallExpr.argList: List<LuaExpression<*>> get() {
     val args = this.args
     return when (args) {
-        is LuaSingleArg -> listOf(args.expr)
-        is LuaListArgs -> args.exprList
+        is LuaSingleArg -> listOf(args.expression)
+        is LuaListArgs -> args.expressionList
         else -> emptyList()
     }
 }
 
-val LuaBinaryExpr.left: LuaExpr? get() {
-    return PsiTreeUtil.getStubChildOfType(this, LuaExpr::class.java)
+val LuaBinaryExpr.left: LuaExpression<*>? get() {
+    return PsiTreeUtil.getStubChildOfType(this, LuaExpression::class.java)
 }
 
-val LuaBinaryExpr.right: LuaExpr? get() {
-    val list = PsiTreeUtil.getStubChildrenOfTypeAsList(this, LuaExpr::class.java)
+val LuaBinaryExpr.right: LuaExpression<*>? get() {
+    val list = PsiTreeUtil.getStubChildrenOfTypeAsList(this, LuaExpression::class.java)
     return list.getOrNull(1)
 }
 
-fun LuaClassMethod.findOverridingMethod(context: SearchContext): LuaClassMethod? {
+fun LuaTypeMethod<*>.findOverridingMethod(context: SearchContext): LuaTypeMethod<*>? {
     val methodName = name ?: return null
-    val type = guessClassType(context) ?: return null
-    var superMethod: LuaClassMethod? = null
-    TyClass.processSuperClass(type, context) { superType->
+    val type = guessParentClass(context) ?: return null
+    var superMethod: LuaTypeMethod<*>? = null
+    Ty.processSuperClasses(context, type) { superType ->
         ProgressManager.checkCanceled()
-        val superTypeName = superType.className
-        superMethod = LuaShortNamesManager.getInstance(context.project).findMethod(superTypeName, methodName, context)
-        superMethod == null
+        val superClass = (if (superType is ITyGeneric) superType.base else superType) as? ITyClass
+        if (superClass != null) {
+            superMethod = LuaClassMemberIndex.findMethod(context, superClass, methodName)
+            superMethod == null
+        } else true
     }
     return superMethod
 }

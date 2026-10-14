@@ -22,7 +22,7 @@ import com.intellij.util.io.StringRef
 import com.tang.intellij.lua.psi.LuaParamInfo
 import com.tang.intellij.lua.ty.*
 
-fun StubOutputStream.writeParamInfoArray(params: Array<LuaParamInfo>) {
+fun StubOutputStream.writeParamInfoArray(params: Array<out LuaParamInfo>) {
     writeByte(params.size)
     for (param in params) {
         LuaParamInfo.serialize(param, this)
@@ -38,7 +38,19 @@ fun StubInputStream.readParamInfoArray(): Array<LuaParamInfo> {
     return list.toTypedArray()
 }
 
-fun StubOutputStream.writeSignatures(signatures: Array<IFunSignature>) {
+fun StubOutputStream.writeParamInfoArrayNullable(params: Array<out LuaParamInfo>?) {
+    writeBoolean(params != null)
+    if (params != null) {
+        writeParamInfoArray(params)
+    }
+}
+
+fun StubInputStream.readParamInfoArrayNullable(): Array<LuaParamInfo>? {
+    val notNull = readBoolean()
+    return if (notNull) readParamInfoArray() else null
+}
+
+fun StubOutputStream.writeSignatures(signatures: Array<out IFunSignature>) {
     writeByte(signatures.size)
     for (sig in signatures) {
         FunSignature.serialize(sig, this)
@@ -52,6 +64,18 @@ fun StubInputStream.readSignatures(): Array<IFunSignature> {
         arr.add(FunSignature.deserialize(this))
     }
     return arr.toTypedArray()
+}
+
+fun StubOutputStream.writeSignaturesNullable(signatures: Array<out IFunSignature>?) {
+    writeBoolean(signatures != null)
+    if (signatures != null) {
+        writeSignatures(signatures)
+    }
+}
+
+fun StubInputStream.readSignatureNullable(): Array<IFunSignature>? {
+    val notNull = readBoolean()
+    return if (notNull) readSignatures() else null
 }
 
 fun StubInputStream.readTyNullable(): ITy? {
@@ -79,21 +103,31 @@ fun StubInputStream.readNames(): Array<String> {
     return list.toTypedArray()
 }
 
-fun StubOutputStream.writeTyParams(tyParams: Array<TyParameter>) {
-    writeByte(tyParams.size)
-    tyParams.forEach { parameter ->
-        writeName(parameter.name)
-        writeName(parameter.superClassName)
+fun StubOutputStream.writeGenericParamsNullable(genericParams: Array<out TyGenericParameter>?) {
+    writeByte(genericParams?.size ?: 0)
+    genericParams?.forEach { parameter ->
+        writeName(parameter.className)
+        writeName(parameter.scopeName)
+        writeName(parameter.varName)
+        writeTyNullable(parameter.superClass)
     }
 }
 
-fun StubInputStream.readTyParams(): Array<TyParameter> {
-    val list = mutableListOf<TyParameter>()
+fun StubInputStream.readGenericParamsNullable(): Array<TyGenericParameter>? {
+    val list = mutableListOf<TyGenericParameter>()
     val size = readByte()
-    for (i in 0 until size) {
-        val name = StringRef.toString(readName())
-        val base = StringRef.toString(readName())
-        list.add(TyParameter(name, base))
+
+    if (size == 0.toByte()) {
+        return null
     }
+
+    for (i in 0 until size) {
+        val className = StringRef.toString(readName())
+        val scopeName = StringRef.toString(readName())
+        val varName = StringRef.toString(readName())
+        val superClass = readTyNullable()
+        list.add(TyGenericParameter(className, scopeName, varName, superClass))
+    }
+
     return list.toTypedArray()
 }

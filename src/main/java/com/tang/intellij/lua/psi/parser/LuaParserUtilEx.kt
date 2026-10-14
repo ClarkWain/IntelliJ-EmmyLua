@@ -51,19 +51,20 @@ internal fun expectExprList(b: PsiBuilder, l: Int, error: Boolean = true): PsiBu
     if (firstExpr != null) {
         val m = firstExpr.precede()
         m.done(EXPR_LIST)
+        m.setCustomEdgeTokenBinders(MY_LEFT_COMMENT_BINDER, null)
         return m
     } else if (error) b.error("Expression expected")
     return null
 }
 
 private val L_BINDERS = TokenSet.create(
-        LOCAL_DEF,
+        LOCAL_DEF_STAT,
         ASSIGN_STAT,
         TABLE_FIELD,
 
-        FUNC_DEF,
-        CLASS_METHOD_DEF,
-        LOCAL_FUNC_DEF,
+        FUNC_DEF_STAT,
+        CLASS_METHOD_DEF_STAT,
+        LOCAL_FUNC_DEF_STAT,
 
         ASSIGN_STAT,
         BREAK_STAT,
@@ -80,7 +81,7 @@ private val L_BINDERS = TokenSet.create(
 )
 
 private val R_BINDERS = TokenSet.create(
-        LOCAL_DEF,
+        LOCAL_DEF_STAT,
         ASSIGN_STAT,
         TABLE_FIELD
 )

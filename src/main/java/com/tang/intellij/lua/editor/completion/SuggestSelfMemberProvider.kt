@@ -18,14 +18,12 @@ package com.tang.intellij.lua.editor.completion
 
 import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.psi.util.PsiTreeUtil
-import com.tang.intellij.lua.psi.LuaClassMember
-import com.tang.intellij.lua.psi.LuaClassMethodDef
 import com.tang.intellij.lua.psi.LuaPsiTreeUtil
-import com.tang.intellij.lua.psi.guessClassType
+import com.tang.intellij.lua.psi.LuaClassMethodDefStat
+import com.tang.intellij.lua.ty.TypeMember
+import com.tang.intellij.lua.ty.guessParentClass
 import com.tang.intellij.lua.search.SearchContext
-import com.tang.intellij.lua.ty.ITy
-import com.tang.intellij.lua.ty.ITyFunction
-import com.tang.intellij.lua.ty.isVisibleInScope
+import com.tang.intellij.lua.ty.*
 
 /**
  * suggest self.xxx
@@ -36,28 +34,35 @@ class SuggestSelfMemberProvider : ClassMemberCompletionProvider() {
         val completionParameters = session.parameters
         val completionResultSet = session.resultSet
         val position = completionParameters.position
-        val methodDef = PsiTreeUtil.getParentOfType(position, LuaClassMethodDef::class.java)
+        val methodDef = PsiTreeUtil.getParentOfType(position, LuaClassMethodDefStat::class.java)
         if (methodDef != null && !methodDef.isStatic) {
-            val project = position.project
-            val searchContext = SearchContext.get(project)
-            methodDef.guessClassType(searchContext)?.let { type ->
-                val contextTy = LuaPsiTreeUtil.findContextClass(position)
-                type.processMembers(searchContext) { curType, member ->
-                    if (curType.isVisibleInScope(project, contextTy, member.visibility)) {
-                        addMember(completionResultSet,
-                                member,
-                                curType,
-                                type,
-                                MemberCompletionMode.Colon,
-                                project,
-                                object : HandlerProcessor() {
-                                    override fun process(element: LuaLookupElement, member: LuaClassMember, memberTy: ITy?): LookupElement { return element }
+            val context = SearchContext.get(position.project)
+            methodDef.guessParentClass(context)?.let { type ->
+                val contextTy = LuaPsiTreeUtil.findContextClass(context, position)
 
-                                    override fun processLookupString(lookupString: String, member: LuaClassMember, memberTy: ITy?): String {
-                                        return if (memberTy is ITyFunction) "self:${member.name}" else "self.${member.name}"
-                                    }
-                                })
+                type.processMembers(context) { curType, member ->
+                    val curClass = (if (curType is ITyGeneric) curType.base else type) as? ITyClass
+                    val name = member.name
+
+                    if (curClass != null && name != null && curClass.isVisibleInScope(context.project, contextTy, member.visibility)) {
+                        addMember(context,
+                            completionResultSet,
+                            member,
+                            curClass.getMemberSubstitutor(context),
+                            curClass,
+                            name,
+                            member.guessType(context) ?: Primitives.UNKNOWN,
+                            MemberCompletionMode.Colon,
+                            object : HandlerProcessor() {
+                                override fun process(element: LuaLookupElement, member: TypeMember, memberTy: ITy?): LookupElement { return element }
+
+                                override fun processLookupString(lookupString: String, member: TypeMember, memberTy: ITy?): String {
+                                    return if (memberTy is ITyFunction) "self:${member.name}" else "self.${member.name}"
+                                }
+                            })
                     }
+
+                    true
                 }
             }
         }

@@ -9,6 +9,8 @@ import com.intellij.psi.PsiElementVisitor;
 import com.intellij.psi.util.PsiTreeUtil;
 import static com.tang.intellij.lua.comment.psi.LuaDocTypes.*;
 import com.tang.intellij.lua.comment.psi.*;
+import com.tang.intellij.lua.psi.Visibility;
+import com.tang.intellij.lua.search.SearchContext;
 import com.tang.intellij.lua.ty.ITy;
 
 public class LuaDocArrTyImpl extends LuaDocTyImpl implements LuaDocArrTy {
@@ -38,6 +40,40 @@ public class LuaDocArrTyImpl extends LuaDocTyImpl implements LuaDocArrTy {
   @NotNull
   public ITy getType() {
     return LuaDocPsiImplUtilKt.getType(this);
+  }
+
+  @Override
+  @NotNull
+  public Visibility getVisibility() {
+    return LuaDocPsiImplUtilKt.getVisibility(this);
+  }
+
+  @Override
+  @NotNull
+  public ITy guessIndexType(@NotNull SearchContext context) {
+    return LuaDocPsiImplUtilKt.guessIndexType(this, context);
+  }
+
+  @Override
+  @NotNull
+  public ITy guessType(@NotNull SearchContext context) {
+    return LuaDocPsiImplUtilKt.guessType(this, context);
+  }
+
+  @Override
+  @NotNull
+  public ITy guessParentType(@NotNull SearchContext context) {
+    return LuaDocPsiImplUtilKt.guessParentType(this, context);
+  }
+
+  @Override
+  public boolean isDeprecated() {
+    return LuaDocPsiImplUtilKt.isDeprecated(this);
+  }
+
+  @Override
+  public boolean isExplicitlyTyped() {
+    return LuaDocPsiImplUtilKt.isExplicitlyTyped(this);
   }
 
 }

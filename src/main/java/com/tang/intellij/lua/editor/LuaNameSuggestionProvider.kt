@@ -22,11 +22,10 @@ import com.intellij.psi.codeStyle.NameUtil
 import com.intellij.psi.codeStyle.SuggestedNameInfo
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.refactoring.rename.NameSuggestionProvider
-import com.intellij.util.Processor
-import com.tang.intellij.lua.lang.LuaLanguage
 import com.tang.intellij.lua.psi.*
 import com.tang.intellij.lua.search.SearchContext
 import com.tang.intellij.lua.ty.*
+import java.util.*
 
 /**
  *
@@ -39,24 +38,26 @@ class LuaNameSuggestionProvider : NameSuggestionProvider {
             return oriName.replace(".", "")
         }
     }
-    
-    private fun collectNames(type: ITy, context: SearchContext, collector: (name: String, suffix: String, preferLonger: Boolean) -> Unit) {
+
+    private fun collectNames(context: SearchContext, type: ITy, collector: (name: String, suffix: String, preferLonger: Boolean) -> Unit) {
         when (type) {
             is ITyClass -> {
                 if (!type.isAnonymous && type !is TyDocTable)
                     collector(fixName(type.className), "", false)
-                TyClass.processSuperClass(type, context) { superType ->
-                    if (!superType.isAnonymous)
-                        collector(fixName(superType.className), "", false)
+                Ty.processSuperClasses(context, type) { superType ->
+                    val superClass = (if (superType is ITyGeneric) superType.base else superType) as? ITyClass
+                    if (superClass != null && !superClass.isAnonymous) {
+                        collector(fixName(superClass.className), "", false)
+                    }
                     true
                 }
             }
-            is ITyArray -> collectNames(type.base, context) { name, _, _ ->
+            is ITyArray -> collectNames(context, type.base) { name, _, _ ->
                 collector(name, "List", false)
             }
             is ITyGeneric -> {
-                val paramTy = type.getParamTy(1)
-                collectNames(paramTy, context) { name, _, _ ->
+                val paramTy = type.getArgTy(1)
+                collectNames(context, paramTy) { name, _, _ ->
                     collector(name, "Map", false)
                 }
             }
@@ -67,22 +68,26 @@ class LuaNameSuggestionProvider : NameSuggestionProvider {
     private fun getNames(ref: PsiReference, set: MutableSet<String>) {
         val ele = ref.element
         val p1 = ele.parent
-        if (ele is LuaExpr) {
+        if (ele is LuaExpression<*>) {
             when (p1) {
                 is LuaListArgs -> {
                     //call(var)
                     val paramIndex = p1.getIndexFor(ele)
                     val p2 = p1.parent as? LuaCallExpr
                     if (p2 != null) {
-                        val ty = p2.guessParentType(SearchContext.get(ele.project))
+                        val context = SearchContext.get(ele.project)
+                        val ty = p2.guessParentType(context)
+
+                        if (ty == null) {
+                            return
+                        }
+
                         TyUnion.each(ty) { iTy ->
-                            if (iTy is ITyFunction) {
-                                iTy.process(Processor { sig ->
-                                    sig.params.getOrNull(paramIndex)?.let { paramInfo ->
-                                        set.add(paramInfo.name)
-                                    }
-                                    return@Processor false
-                                })
+                            iTy.processSignatures(context) { sig ->
+                                sig.params?.getOrNull(paramIndex)?.let { paramInfo ->
+                                    set.add(paramInfo.name)
+                                }
+                                return@processSignatures false
                             }
                         }
                     }
@@ -90,10 +95,10 @@ class LuaNameSuggestionProvider : NameSuggestionProvider {
                 is LuaExprList -> {
                     //xxx = var
                     val p2 = p1.parent as? LuaAssignStat
-                    val valueList = p2?.valueExprList?.exprList
+                    val valueList = p2?.valueExprList?.expressionList
                     if (valueList != null) {
                         val index = valueList.indexOf(ele)
-                        val varExpr = p2.getExprAt(index)
+                        val varExpr = p2.getExpressionAt(index)
                         if (varExpr is LuaIndexExpr) varExpr.name?.let { set.add(it) }
                     }
                 }
@@ -102,20 +107,17 @@ class LuaNameSuggestionProvider : NameSuggestionProvider {
     }
 
     override fun getSuggestedNames(psi: PsiElement, nameSuggestionContext: PsiElement?, set: MutableSet<String>): SuggestedNameInfo? {
-        if (psi.language !is LuaLanguage)
-            return null
-
         val search = ReferencesSearch.search(psi, psi.useScope)
         search.forEach { getNames(it, set) }
 
-        if (psi is LuaTypeGuessable) {
+        if (psi is LuaPsiTypeGuessable) {
             val context = SearchContext.get(psi.getProject())
             val type = psi.guessType(context)
-            if (!Ty.isInvalid(type)) {
+            if (type != null) {
                 val names = HashSet<String>()
 
                 TyUnion.each(type) { ty ->
-                    collectNames(ty, context) { name, suffix, preferLonger ->
+                    collectNames(context, ty) { name, suffix, preferLonger ->
                         if (names.add(name)) {
                             val strings = NameUtil.getSuggestionsByName(name, "", suffix, false, preferLonger, false)
                             set.addAll(strings)

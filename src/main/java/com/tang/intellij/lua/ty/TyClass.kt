@@ -16,68 +16,168 @@
 
 package com.tang.intellij.lua.ty
 
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiElement
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubInputStream
 import com.intellij.psi.stubs.StubOutputStream
 import com.intellij.util.Processor
 import com.intellij.util.io.StringRef
 import com.tang.intellij.lua.Constants
+import com.tang.intellij.lua.comment.LuaCommentUtil
 import com.tang.intellij.lua.comment.psi.LuaDocTableDef
 import com.tang.intellij.lua.comment.psi.LuaDocTagClass
-import com.tang.intellij.lua.project.LuaSettings
+import com.tang.intellij.lua.comment.psi.LuaDocTagField
 import com.tang.intellij.lua.psi.*
 import com.tang.intellij.lua.psi.search.LuaClassInheritorsSearch
 import com.tang.intellij.lua.psi.search.LuaShortNamesManager
+import com.tang.intellij.lua.search.ProjectSearchContext
+import com.tang.intellij.lua.search.PsiSearchContext
 import com.tang.intellij.lua.search.SearchContext
+import com.tang.intellij.lua.stubs.*
 
-interface ITyClass : ITy {
+
+interface ITyClass : ITyResolvable {
     val className: String
-    val varName: String
-    var superClassName: String?
+    val varName: String?
+
+    var superClass: ITy?
     var aliasName: String?
-    fun processAlias(processor: Processor<String>): Boolean
+    var params: Array<TyGenericParameter>?
+    var signatures: Array<IFunSignature>?
+
     fun lazyInit(searchContext: SearchContext)
-    fun getMemberChain(context: SearchContext): ClassMemberChain
-    fun processMembers(context: SearchContext, processor: (ITyClass, LuaClassMember) -> Unit, deep: Boolean = true)
-    fun processMembers(context: SearchContext, processor: (ITyClass, LuaClassMember) -> Unit) {
-        processMembers(context, processor, true)
-    }
-    fun findMember(name: String, searchContext: SearchContext): LuaClassMember?
-    fun findMemberType(name: String, searchContext: SearchContext): ITy? {
-        return infer(findMember(name, searchContext), searchContext)
-    }
-    fun findSuperMember(name: String, searchContext: SearchContext): LuaClassMember?
+    fun processAlias(processor: Processor<String>): Boolean
 
     fun recoverAlias(context: SearchContext, aliasSubstitutor: TyAliasSubstitutor): ITy {
         return this
+    }
+
+    override fun willResolve(context: SearchContext): Boolean {
+        lazyInit(context)
+        return !isAnonymous && !isGlobal
+    }
+
+    override fun resolve(context: SearchContext, genericArgs: Array<out ITy>?): ITy {
+        return if (willResolve(context)) {
+            val scopedType = context.element?.let {
+                LuaScopedTypeTree.get(it.containingFile)?.findName(context, it, className)?.type
+            }
+
+            if (scopedType != null) {
+                scopedType
+            } else {
+                val aliasDef = LuaShortNamesManager.getInstance(context.project).findAlias(context, className)
+
+                if (aliasDef != null) {
+                    val aliasTy = aliasDef.type
+
+                    if (genericArgs != null) {
+                        TyGeneric(genericArgs, aliasTy)
+                    } else {
+                        aliasTy
+                    }
+                } else {
+                    this
+                }
+            }
+        } else {
+            this
+        }
     }
 }
 
 fun ITyClass.isVisibleInScope(project: Project, contextTy: ITy, visibility: Visibility): Boolean {
     if (visibility == Visibility.PUBLIC)
         return true
-    var isVisible = false
-    TyUnion.process(contextTy) {
+
+    TyUnion.each(contextTy) {
         if (it is ITyClass) {
-            if (it == this)
-                isVisible = true
-            else if (visibility == Visibility.PROTECTED) {
-                isVisible = LuaClassInheritorsSearch.isClassInheritFrom(GlobalSearchScope.projectScope(project), project, className, it.className)
+            if (it == this || (
+                            visibility == Visibility.PROTECTED
+                            && LuaClassInheritorsSearch.isClassInheritFrom(GlobalSearchScope.projectScope(project), project, className, it.className))
+            ) {
+                return true
             }
         }
-        !isVisible
     }
-    return isVisible
+
+    return false
+}
+
+private fun equalToShape(context: SearchContext, target: ITy, source: ITy): Boolean {
+    if (source !is ITyClass || source is ITyPrimitive) {
+        return false
+    }
+
+    val sourceSubstitutor = source.getMemberSubstitutor(context)
+    val targetSubstitutor = target.getMemberSubstitutor(context)
+
+    var isEqual = true
+    var targetMemberCount = 0
+
+    target.processMembers(context, true) { _, targetMember ->
+        targetMemberCount++
+
+        val indexTy = targetMember.guessIndexType(context)
+
+        val targetMemberTy = targetMember.guessType(context).let {
+            if (it == null) {
+                return@processMembers true
+            }
+
+            if (targetSubstitutor != null) {
+                it.substitute(context, targetSubstitutor)
+            } else it
+        }
+
+        val sourceMember = if (indexTy != null) {
+            source.findIndexer(context, indexTy, true)
+        } else {
+            targetMember.name?.let { source.findMember(context, it) }
+        }
+
+        if (sourceMember == null) {
+            isEqual = TyUnion.find(targetMemberTy, TyNil::class.java) != null
+            return@processMembers isEqual
+        }
+
+        val sourceMemberTy = (sourceMember.guessType(context) ?: Primitives.UNKNOWN).let {
+            if (sourceSubstitutor != null) it.substitute(context, sourceSubstitutor) else it
+        }
+
+        if (!targetMemberTy.equals(context, sourceMemberTy, 0)) {
+            isEqual = false
+            return@processMembers false
+        }
+
+        true
+    }
+
+    if (!isEqual) {
+        return false
+    }
+
+    var sourceMemberCount = 0
+
+    source.processMembers(context, true) { _, _ ->
+        sourceMemberCount++ < targetMemberCount
+    }
+
+    return targetMemberCount == sourceMemberCount
 }
 
 abstract class TyClass(override val className: String,
-                       override val varName: String = "",
-                       override var superClassName: String? = null
+                       override var params: Array<TyGenericParameter>? = null,
+                       override val varName: String? = "",
+                       override var superClass: ITy? = null,
+                       override var signatures: Array<IFunSignature>? = null
 ) : Ty(TyKind.Class), ITyClass {
 
     final override var aliasName: String? = null
+
+    final override val identifier: String get() = className
 
     private var _lazyInitialized: Boolean = false
 
@@ -85,8 +185,53 @@ abstract class TyClass(override val className: String,
         return other is ITyClass && other.className == className && other.flags == flags
     }
 
+    override fun equals(context: SearchContext, other: ITy, equalityFlags: Int): Boolean {
+        if (this === other) {
+            return true
+        }
+
+        Ty.resolve(context, this).let {
+            if (it !== this) {
+                return it.equals(context, other, equalityFlags)
+            }
+
+        }
+
+        val resolvedOther = Ty.resolve(context, other)
+
+        if (this === resolvedOther) {
+            return true
+        }
+
+        if (resolvedOther is ITyClass) {
+            lazyInit(context)
+            resolvedOther.lazyInit(context)
+
+            if (resolvedOther.className == className && resolvedOther.flags == flags) {
+                return true
+            }
+        }
+
+        if (equalityFlags and TyEqualityFlags.NON_STRUCTURAL == 0 && isShape(context) && resolvedOther.isShape(context)) {
+            return equalToShape(context, this, resolvedOther)
+        }
+
+        return false
+    }
+
     override fun hashCode(): Int {
         return className.hashCode()
+    }
+
+    override fun isShape(context: SearchContext): Boolean {
+        val resolved = Ty.resolve(context, this)
+
+        if (resolved !== this) {
+            return resolved.isShape(context)
+        }
+
+        lazyInit(context)
+        return super<Ty>.isShape(context)
     }
 
     override fun processAlias(processor: Processor<String>): Boolean {
@@ -95,40 +240,95 @@ abstract class TyClass(override val className: String,
             return true
         if (!processor.process(alias))
             return false
-        if (!isGlobal && !isAnonymous && LuaSettings.instance.isRecognizeGlobalNameAsType)
-            return processor.process(getGlobalTypeName(className))
         return true
     }
 
-    override fun getMemberChain(context: SearchContext): ClassMemberChain {
-        val superClazz = getSuperClass(context) as? ITyClass
-        val chain = ClassMemberChain(this, superClazz?.getMemberChain(context))
-        val manager = LuaShortNamesManager.getInstance(context.project)
-        val members = manager.getClassMembers(className, context)
-        members.forEach { chain.add(it) }
+    override fun processMembers(context: SearchContext, deep: Boolean, process: ProcessTypeMember): Boolean {
+        lazyInit(context)
 
-        processAlias(Processor { alias ->
-            val classMembers = manager.getClassMembers(alias, context)
-            classMembers.forEach { chain.add(it) }
-            true
-        })
+        val clazzName = className
+        val project = context.project
 
-        return chain
+        val manager = LuaShortNamesManager.getInstance(project)
+        val members = mutableListOf<LuaPsiTypeMember>()
+        members.addAll(manager.getClassMembers(context, clazzName))
+
+        processAlias { alias ->
+            val classMembers = manager.getClassMembers(context, alias)
+            members.addAll(classMembers)
+        }
+
+        for (member in members) {
+            ProgressManager.checkCanceled()
+
+            if (!process(this, member)) {
+                return false
+            }
+        }
+
+        // super
+        if (deep) {
+            val memberNames = mutableListOf<String>()
+            val memberIndexTys = mutableListOf<ITy>()
+
+            for (member in members) {
+                val memberName = member.name
+
+                if (memberName != null) {
+                    memberNames.add(memberName)
+                } else {
+                    member.guessIndexType(context)?.let {
+                        memberIndexTys.add(it)
+                    }
+                }
+            }
+
+            return processSuperClasses(context, this) {
+                it.processMembers(context, false) { _, superMember ->
+                    val superMemberName = superMember.name
+
+                    val memberOverridden = if (superMemberName != null) {
+                        memberNames.contains(superMemberName)
+                    } else {
+                        superMember.guessIndexType(context)?.let { superMemberIndexTy ->
+                            memberIndexTys.find { memberIndexTy ->
+                                memberIndexTy === superMemberIndexTy || memberIndexTy.contravariantOf(context, superMemberIndexTy, 0)
+                            } != null
+                        } ?: false
+                    }
+
+                    if (memberOverridden) {
+                        true
+                    } else {
+                        process(this, superMember)
+                    }
+                }
+            }
+        }
+
+        return true
     }
 
-    override fun processMembers(context: SearchContext, processor: (ITyClass, LuaClassMember) -> Unit, deep: Boolean) {
-        val chain = getMemberChain(context)
-        chain.process(deep, processor)
+    override fun processSignatures(context: SearchContext, processor: Processor<IFunSignature>): Boolean {
+        lazyInit(context)
+
+        signatures?.let {
+            for (signature in it) {
+                if (!processor.process(signature)) {
+                    return false
+                }
+            }
+        }
+
+        return true
     }
 
-    override fun findMember(name: String, searchContext: SearchContext): LuaClassMember? {
-        val chain = getMemberChain(searchContext)
-        return chain.findMember(name)
+    override fun processMember(context: SearchContext, name: String, deep: Boolean, indexerSubstitutor: ITySubstitutor?, process: ProcessTypeMember): Boolean {
+        return LuaShortNamesManager.getInstance(context.project).processMember(context, this, name, true, deep, TyChainSubstitutor.chain(getMemberSubstitutor(context), indexerSubstitutor), process)
     }
 
-    override fun findSuperMember(name: String, searchContext: SearchContext): LuaClassMember? {
-        val chain = getMemberChain(searchContext)
-        return chain.superChain?.findMember(name)
+    override fun processIndexer(context: SearchContext, indexTy: ITy, exact: Boolean, deep: Boolean, indexerSubstitutor: ITySubstitutor?, process: ProcessTypeMember): Boolean {
+        return LuaShortNamesManager.getInstance(context.project).processIndexer(context, this, indexTy, exact, true, deep, TyChainSubstitutor.chain(getMemberSubstitutor(context), indexerSubstitutor), process)
     }
 
     override fun accept(visitor: ITyVisitor) {
@@ -136,129 +336,154 @@ abstract class TyClass(override val className: String,
     }
 
     override fun lazyInit(searchContext: SearchContext) {
-        if (!_lazyInitialized) {
+        if (!_lazyInitialized && !searchContext.isDumb) {
             _lazyInitialized = true
             doLazyInit(searchContext)
         }
     }
 
     open fun doLazyInit(searchContext: SearchContext) {
-        val classDef = LuaShortNamesManager.getInstance(searchContext.project).findClass(className, searchContext)
-        if (classDef != null && aliasName == null) {
-            val tyClass = classDef.type
-            aliasName = tyClass.aliasName
-            superClassName = tyClass.superClassName
+        if (aliasName == null) {
+            val classDef = LuaPsiTreeUtil.findClass(searchContext, className)
+            if (classDef != null) {
+                val tyClass = classDef.type
+                aliasName = tyClass.aliasName
+                superClass = tyClass.superClass
+                params = tyClass.params
+                flags = tyClass.flags
+                signatures = tyClass.signatures
+            }
         }
     }
 
-    override fun getSuperClass(context: SearchContext): ITy? {
+    override fun getSuperType(context: SearchContext): ITy? {
         lazyInit(context)
-        val clsName = superClassName
-        if (clsName != null && clsName != className) {
-            return Ty.getBuiltin(clsName) ?: LuaShortNamesManager.getInstance(context.project).findClass(clsName, context)?.type
-        }
-        return null
+        return superClass
     }
 
-    override fun subTypeOf(other: ITy, context: SearchContext, strict: Boolean): Boolean {
-        // class extends table
-        if (other == Ty.TABLE) return true
-        if (super.subTypeOf(other, context, strict)) return true
-
-        // Lazy init for superclass
-        this.doLazyInit(context)
-        // Check if any of the superclasses are type
-        var isSubType = false
-        processSuperClass(this, context) { superType ->
-            isSubType = superType == other
-            !isSubType
-        }
-        return isSubType
+    override fun getParams(context: SearchContext): Array<TyGenericParameter>? {
+        lazyInit(context)
+        return params
     }
 
-    override fun substitute(substitutor: ITySubstitutor): ITy {
-        return substitutor.substitute(this)
+    override fun substitute(context: SearchContext, substitutor: ITySubstitutor): ITy {
+        return substitutor.substitute(context, this)
+    }
+
+    override fun contravariantOf(context: SearchContext, other: ITy, varianceFlags: Int): Boolean {
+        lazyInit(context)
+
+        val resolved = Ty.resolve(context, this)
+
+        if (resolved !== this) {
+            return resolved.contravariantOf(context, other, varianceFlags)
+        } else {
+            return super.contravariantOf(context, other, varianceFlags)
+        }
     }
 
     companion object {
-        /*
-         * WARNING: Risk of classloading deadlock
-         *
-         * Calling `createSerializedClass` uses the type `TyClass`.
-         * However, using the type `TyClass` requires all its static fields
-         * to be initialized. So the JVM can't run `createSerializedClass` without
-         * having `TyClass`, and it can't use `TyClass` without running `createSerializedClass`.
-         * Thus the JVM deadlocks during classloading, resulting in frozen indexing...
-         * 
-         * Workaround this by using Kotlin lazy properties,
-         * so `createSerializedClass` is not run until TyClass.G is actually accessed.
-         *
-         * See issue #510 and Ty.kt for more info on this bug.
-         * -- Techcable
-         */
-
         // for _G
+        // Indexing initializes this base class and its subclasses on different threads.
+        // Constructing a subclass in the base class initializer creates a JVM init-lock cycle.
         val G: TyClass by lazy { createSerializedClass(Constants.WORD_G) }
 
-        fun createAnonymousType(nameDef: LuaNameDef): TyClass {
-            val stub = nameDef.stub
-            val tyName = stub?.anonymousType ?: getAnonymousType(nameDef)
-            return createSerializedClass(tyName, nameDef.name, null, null, TyFlags.ANONYMOUS)
-        }
-
-        fun createGlobalType(nameExpr: LuaNameExpr, store: Boolean): ITy {
-            val name = nameExpr.name
-            val g = createSerializedClass(getGlobalTypeName(nameExpr), name, null, null, TyFlags.GLOBAL)
-            if (!store && LuaSettings.instance.isRecognizeGlobalNameAsType)
-                return createSerializedClass(name, name, null, null, TyFlags.GLOBAL).union(g)
-            return g
-        }
-
         fun createGlobalType(name: String): ITy {
-            val g = createSerializedClass(getGlobalTypeName(name), name, null, null, TyFlags.GLOBAL)
-            if (LuaSettings.instance.isRecognizeGlobalNameAsType)
-                return createSerializedClass(name, name, null, null, TyFlags.GLOBAL).union(g)
-            return g
+            return createSerializedClass(getGlobalTypeName(name), null, name, null, null, null, TyFlags.GLOBAL)
         }
 
-        fun processSuperClass(start: ITyClass, searchContext: SearchContext, processor: (ITyClass) -> Boolean): Boolean {
-            val processedName = mutableSetOf<String>()
-            var cur: ITy? = start
-            while (cur != null) {
-                val cls = cur.getSuperClass(searchContext)
-                if (cls is ITyClass) {
-                    if (!processedName.add(cls.className)) {
-                        // todo: Infinite inheritance
-                        return false
-                    }
-                    if (!processor(cls))
-                        return false
-                }
-                cur = cls
-            }
-            return true
+        fun createGlobalType(nameExpr: LuaNameExpr): ITy {
+            return createGlobalType(nameExpr.name)
+        }
+
+        fun createSelfType(classTy: ITyClass): TyClass {
+            val tyName = getSelfClassName(classTy)
+            return createSerializedClass(tyName, null, Constants.WORD_SELF, classTy, null, null, TyFlags.ANONYMOUS)
         }
     }
 }
 
-class TyPsiDocClass(tagClass: LuaDocTagClass) : TyClass(tagClass.name) {
-
+class TyPsiDocClass(override val psi: LuaDocTagClass) : TyClass(
+    psi.name,
+    psi.genericDefList.map { TyGenericParameter(it) }.toTypedArray(),
+    null,
+    psi.superClass?.getType(),
+    psi.overloads
+), IPsiTy<LuaDocTagClass> {
     init {
-        val supperRef = tagClass.superClassNameRef
-        if (supperRef != null)
-            superClassName = supperRef.text
-        aliasName = tagClass.aliasName
+        aliasName = psi.aliasName
+        this.flags = if (psi.isShape) TyFlags.SHAPE else 0
+    }
+
+    override fun processMembers(context: SearchContext, deep: Boolean, process: ProcessTypeMember): Boolean {
+        if (!super.processMembers(context, deep, process) && context.isDumb) {
+            return false
+        }
+
+        if (context.isDumb) {
+            val container = LuaCommentUtil.findContainer(psi)
+            return container.processTags(LuaDocTagField::class.java) { field ->
+                process(this, field)
+            }
+        }
+
+        return true
+    }
+
+    override fun processMember(context: SearchContext, name: String, deep: Boolean, indexerSubstitutor: ITySubstitutor?, process: ProcessTypeMember): Boolean {
+        if (!super.processMember(context, name, deep, indexerSubstitutor, process)) {
+            return false
+        }
+
+        if (context.isDumb) {
+            val container = LuaCommentUtil.findContainer(psi)
+            container.getFieldDef(name)?.let {
+                if (!process(this, it)) {
+                    return false
+                }
+            }
+            container.getFieldDef(context, TyPrimitiveLiteral.getTy(TyPrimitiveKind.String, name), false, indexerSubstitutor)?.let {
+                if (!process(this, it)) {
+                    return false
+                }
+            }
+        }
+
+        return true
+    }
+
+    override fun processIndexer(context: SearchContext, indexTy: ITy, exact: Boolean, deep: Boolean, indexerSubstitutor: ITySubstitutor?, process: ProcessTypeMember): Boolean {
+        if (!super.processIndexer(context, indexTy, exact, deep, indexerSubstitutor, process)) {
+            return false
+        }
+
+        if (context.isDumb) {
+            val container = LuaCommentUtil.findContainer(psi)
+            container.getFieldDef(context, indexTy, exact, indexerSubstitutor)?.let {
+                if (!process(this, it)) {
+                    return false
+                }
+            }
+        }
+
+        return true
+    }
+
+    override fun willResolve(context: SearchContext): Boolean {
+        return false // Nothing to resolve
     }
 
     override fun doLazyInit(searchContext: SearchContext) {}
 }
 
 open class TySerializedClass(name: String,
-                             varName: String = name,
-                             supper: String? = null,
+                             params: Array<TyGenericParameter>? = null,
+                             varName: String? = null,
+                             superClass: ITy? = null,
+                             signatures: Array<IFunSignature>? = null,
                              alias: String? = null,
                              flags: Int = 0)
-    : TyClass(name, varName, supper) {
+    : TyClass(name, params, varName, superClass, signatures) {
     init {
         aliasName = alias
         this.flags = flags
@@ -267,17 +492,37 @@ open class TySerializedClass(name: String,
     override fun recoverAlias(context: SearchContext, aliasSubstitutor: TyAliasSubstitutor): ITy {
         if (this.isAnonymous || this.isGlobal)
             return this
-        val alias = LuaShortNamesManager.getInstance(context.project).findAlias(className, context)
-        return alias?.type?.substitute(aliasSubstitutor) ?: this
+        val alias = LuaShortNamesManager.getInstance(context.project).findAlias(context, className)
+        return alias?.type?.substitute(context, aliasSubstitutor) ?: this
+    }
+
+    override fun contravariantOf(context: SearchContext, other: ITy, varianceFlags: Int): Boolean {
+        if (isUnknown) {
+            // Same behaviour as TyUnknown
+            return other !is TyMultipleResults
+        }
+
+        return super.contravariantOf(context, other, varianceFlags)
     }
 }
 
-//todo Lazy class ty
-class TyLazyClass(name: String) : TySerializedClass(name)
+class TyLazyClass(name: String, val psi: PsiElement? = null) : TySerializedClass(name, null) {
+    override fun doLazyInit(searchContext: SearchContext) {
+        val context = if (psi != null) {
+            PsiSearchContext(psi)
+        } else {
+            ProjectSearchContext(searchContext.project)
+        }
+
+        super.doLazyInit(context)
+    }
+}
 
 fun createSerializedClass(name: String,
-                          varName: String = name,
-                          supper: String? = null,
+                          params: Array<TyGenericParameter>? = null,
+                          varName: String? = null,
+                          superClass: ITy? = null,
+                          signatures: Array<IFunSignature>? = null,
                           alias: String? = null,
                           flags: Int = 0): TyClass {
     val list = name.split("|")
@@ -288,14 +533,85 @@ fun createSerializedClass(name: String,
         }
     }
 
-    return TySerializedClass(name, varName, supper, alias, flags)
+    return TySerializedClass(name, params, varName, superClass, signatures, alias, flags)
 }
 
-private val PsiFile.uid: String get() {
-    if (this is LuaPsiFile)
-        return this.uid
+fun createTableGenericFromMembers(context: SearchContext, ty: ITy): ITyGeneric {
+    val isEmpty = ty.processMembers(context) { _, _ -> false }
 
-    return name
+    if (isEmpty) {
+        return TyGeneric(arrayOf(Primitives.UNKNOWN, Primitives.UNKNOWN), Primitives.TABLE)
+    }
+
+    var keyType: ITy? = null
+    var elementType: ITy? = null
+
+    ty.processMembers(context) { prefixTy, classMember ->
+        val name = classMember.name
+        val indexType = classMember.indexType
+
+        if (classMember is LuaTableField) {
+            val exprList = classMember.expressionList
+
+            if (exprList.size == 2) {
+                keyType = context.withIndex(0) {
+                    exprList[0].guessType(context)?.let {
+                        TyUnion.union(context, keyType, it)
+                    } ?: Primitives.UNKNOWN
+                }
+                elementType = context.withIndex(0) {
+                    exprList[1].guessType(context)?.let {
+                        TyUnion.union(context, elementType, it)
+                    } ?: Primitives.UNKNOWN
+                }
+            } else if (exprList.size == 1) {
+                if (name != null) {
+                    keyType = TyUnion.union(context, keyType, TyPrimitiveLiteral.getTy(TyPrimitiveKind.String, name))
+                } else {
+                    keyType = TyUnion.union(context, keyType, Primitives.NUMBER)
+                }
+
+                elementType = exprList[0].guessType(context)?.let {
+                    TyUnion.union(context, elementType, it)
+                } ?: Primitives.UNKNOWN
+            }
+        } else if (classMember is LuaIndexExpr) {
+            val idExpr = classMember.idExpr
+
+            if (name != null) {
+                keyType = TyUnion.union(context, keyType, TyPrimitiveLiteral.getTy(TyPrimitiveKind.String, name))
+                elementType = prefixTy.guessMemberType(context, name)?.let {
+                    TyUnion.union(context, elementType, it)
+                } ?: Primitives.UNKNOWN
+            } else if (idExpr != null) {
+                val indexTy = idExpr.guessType(context) ?: Primitives.UNKNOWN
+                keyType = TyUnion.union(context, keyType, indexTy)
+                elementType = prefixTy.guessIndexerType(context, indexTy)?.let {
+                    TyUnion.union(context, elementType, it)
+                } ?: Primitives.UNKNOWN
+            } else {
+                keyType = Primitives.UNKNOWN
+                elementType = Primitives.UNKNOWN
+            }
+        } else if (name != null) {
+            keyType = TyUnion.union(context, keyType, TyPrimitiveLiteral.getTy(TyPrimitiveKind.String, name))
+            elementType = classMember.guessType(context)?.let {
+                TyUnion.union(context, elementType, it)
+            } ?: Primitives.UNKNOWN
+        } else if (indexType != null) {
+            keyType = TyUnion.union(context, keyType, indexType.getType())
+            elementType = classMember.guessType(context)?.let {
+                TyUnion.union(context, elementType, it)
+            } ?: Primitives.UNKNOWN
+        } else {
+            keyType = Primitives.UNKNOWN
+            elementType = Primitives.UNKNOWN
+        }
+
+        keyType?.isUnknown == false || elementType?.isUnknown == false
+    }
+
+    return TyGeneric(arrayOf(keyType ?: Primitives.UNKNOWN, elementType ?: Primitives.UNKNOWN), Primitives.TABLE)
 }
 
 fun getTableTypeName(table: LuaTableExpr): String {
@@ -303,41 +619,139 @@ fun getTableTypeName(table: LuaTableExpr): String {
     if (stub != null)
         return stub.tableTypeName
 
-    val fileName = table.containingFile.uid
-    return "$fileName@(${table.node.startOffset})table"
+    val id = table.containingFile.getFileIdentifier()
+    return "table@$id:${table.node.startOffset}"
 }
 
-fun getAnonymousType(nameDef: LuaNameDef): String {
-    return "${nameDef.node.startOffset}@${nameDef.containingFile.uid}"
+fun getAnonymousTypeName(variableDef: LuaPsiElement): String {
+    return "${variableDef.node.startOffset}@${variableDef.containingFile.getFileIdentifier()}"
+}
+
+private val SUFFIXED_CLASS_NAME_REGEX = Regex("#[a-zA-Z]+$")
+
+fun isSuffixedClassName(className: String): Boolean {
+    return SUFFIXED_CLASS_NAME_REGEX.find(className) != null
+}
+
+fun isSuffixedClass(classTy: ITyClass): Boolean {
+    return isSuffixedClassName(classTy.className)
+}
+
+fun getSuffixlessClassName(className: String): String {
+    return className.replace(SUFFIXED_CLASS_NAME_REGEX, "")
+}
+
+fun getSuffixlessClassName(classTy: ITyClass): String {
+    return getSuffixlessClassName(classTy.className)
+}
+
+private const val CLASS_NAME_SUFFIX_SELF = "#self"
+
+fun getSelfClassName(classTy: ITyClass): String {
+    val className = classTy.className
+    return if (className.endsWith(CLASS_NAME_SUFFIX_SELF)) {
+        className
+    } else {
+        className + CLASS_NAME_SUFFIX_SELF
+    }
+}
+
+fun isSelfClass(classTy: ITyClass): Boolean {
+    return classTy.isAnonymous && classTy.className.endsWith(CLASS_NAME_SUFFIX_SELF)
 }
 
 fun getGlobalTypeName(text: String): String {
-    return if (text == Constants.WORD_G) text else "$$text"
+    return if (text == Constants.WORD_G) text else "${Constants.WORD_G}.$text"
 }
 
 fun getGlobalTypeName(nameExpr: LuaNameExpr): String {
     return getGlobalTypeName(nameExpr.name)
 }
 
-class TyTable(val table: LuaTableExpr) : TyClass(getTableTypeName(table)) {
+open class TyTable(override val psi: LuaTableExpr, name: String = getTableTypeName(psi)) : TyClass(name), IPsiTy<LuaTableExpr> {
     init {
-        this.flags = TyFlags.ANONYMOUS or TyFlags.ANONYMOUS_TABLE
+        this.flags = TyFlags.ANONYMOUS_TABLE or TyFlags.SHAPE
     }
 
-    override fun processMembers(context: SearchContext, processor: (ITyClass, LuaClassMember) -> Unit, deep: Boolean) {
-        for (field in table.tableFieldList) {
-            processor(this, field)
-        }
-        super.processMembers(context, processor, deep)
+    override fun willResolve(context: SearchContext): Boolean {
+        return false
     }
-
-    override fun toString(): String = displayName
 
     override fun doLazyInit(searchContext: SearchContext) = Unit
 
-    override fun subTypeOf(other: ITy, context: SearchContext, strict: Boolean): Boolean {
-        // Empty list is a table, but subtype of all lists
-        return super.subTypeOf(other, context, strict) || other == Ty.TABLE || (other is TyArray && table.tableFieldList.size == 0)
+    override fun processMembers(context: SearchContext, deep: Boolean, process: ProcessTypeMember): Boolean {
+        if (!context.isDumb) {
+            return super.processMembers(context, deep, process)
+        }
+
+        psi.tableFieldList.forEach {
+            if (!process(this, it)) {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    override fun processMember(context: SearchContext, name: String, deep: Boolean, indexerSubstitutor: ITySubstitutor?, process: ProcessTypeMember): Boolean {
+        if (!context.isDumb) {
+            return super.processMember(context, name, deep, indexerSubstitutor, process)
+        }
+
+        return psi.tableFieldList.firstOrNull {
+            val fieldName = it.name
+            if (fieldName != null) {
+                fieldName == name
+            } else {
+                val indexTy = it.indexType?.getType()?.let {
+                    if (indexerSubstitutor != null) {
+                        it.substitute(context, indexerSubstitutor)
+                    } else {
+                        it
+                    }
+                }
+
+                (indexTy is ITyPrimitive && indexTy.primitiveKind == TyPrimitiveKind.String)
+                            || (indexTy is TyPrimitiveLiteral && indexTy.primitiveKind == TyPrimitiveKind.String && indexTy.value == name)
+            }
+        }?.let {
+            process(this, it)
+        } ?: true
+    }
+
+    override fun processIndexer(context: SearchContext, indexTy: ITy, exact: Boolean, deep: Boolean, indexerSubstitutor: ITySubstitutor?, process: ProcessTypeMember): Boolean {
+        if (!context.isDumb) {
+            return super.processIndexer(context, indexTy, exact, deep, indexerSubstitutor, process)
+        }
+
+        var narrowestTypeMember: TypeMember? = null
+        var narrowestIndexTy: ITy? = null
+
+        psi.tableFieldList.forEach { field ->
+            val candidateIndexerTy = (field.guessIndexType(context) ?: field.name?.let {
+                TyPrimitiveLiteral.getTy(TyPrimitiveKind.String, it)
+            })?.let {
+                if (indexerSubstitutor != null) {
+                    it.substitute(context, indexerSubstitutor)
+                } else {
+                    it
+                }
+            }
+
+            if ((!exact && candidateIndexerTy?.contravariantOf(context, indexTy, TyVarianceFlags.STRICT_UNKNOWN) == true)
+                    || candidateIndexerTy == indexTy) {
+                if (narrowestIndexTy?.contravariantOf(context, candidateIndexerTy, TyVarianceFlags.STRICT_UNKNOWN) != false) {
+                    narrowestTypeMember = field
+                    narrowestIndexTy = candidateIndexerTy
+                }
+            }
+        }
+
+        return narrowestTypeMember?.let { process(this, it) } ?: true
+    }
+
+    override fun substitute(context: SearchContext, substitutor: ITySubstitutor): ITy {
+        return TyLazySubstitutedTable(context, this, substitutor)
     }
 }
 
@@ -346,21 +760,146 @@ fun getDocTableTypeName(table: LuaDocTableDef): String {
     if (stub != null)
         return stub.className
 
-    val fileName = table.containingFile.uid
-    return "10|$fileName|${table.node.startOffset}"
+    val id = table.containingFile.getFileIdentifier()
+    return "10|$id|${table.node.startOffset}"
 }
 
-class TyDocTable(val table: LuaDocTableDef) : TyClass(getDocTableTypeName(table)) {
-    override fun doLazyInit(searchContext: SearchContext) {}
+fun getSubstitutedDocTableTypeName(table: LuaDocTableDef): String {
+    // TODO: This is very bad... and useless.
+    return "${getDocTableTypeName(table)}${Math.random()}"
+}
 
-    override fun processMembers(context: SearchContext, processor: (ITyClass, LuaClassMember) -> Unit, deep: Boolean) {
-        table.tableFieldList.forEach {
-            processor(this, it)
-        }
+fun getSubstitutedTableTypeName(context: SearchContext, table: LuaTableExpr, substitutor: ITySubstitutor): String {
+    return "${getTableTypeName(table)}:${context.identifier}:${substitutor.name}"
+}
+
+
+open class TyDocTable(override val psi: LuaDocTableDef, name: String = getDocTableTypeName(psi)) : TyClass(name), IPsiTy<LuaDocTableDef> {
+    init {
+        this.flags = TyFlags.SHAPE
     }
 
-    override fun findMember(name: String, searchContext: SearchContext): LuaClassMember? {
-        return table.tableFieldList.firstOrNull { it.name == name }
+    override fun willResolve(context: SearchContext): Boolean {
+        return false
+    }
+
+    override fun doLazyInit(searchContext: SearchContext) = Unit
+
+    override fun processMembers(context: SearchContext, deep: Boolean, process: ProcessTypeMember): Boolean {
+        psi.tableFieldList.forEach {
+            if (!process(this, it)) {
+                return false
+            }
+        }
+        return true
+    }
+
+    override fun processMember(context: SearchContext, name: String, deep: Boolean, indexerSubstitutor: ITySubstitutor?, process: ProcessTypeMember): Boolean {
+        val fieldIndexSubstitutor = TyChainSubstitutor.chain(getMemberSubstitutor(context), indexerSubstitutor)
+
+        return psi.tableFieldList.firstOrNull {
+            val fieldName = it.name
+            if (fieldName != null) {
+                fieldName == name
+            } else {
+                val indexTy = it.indexType?.getType()?.let {
+                    if (fieldIndexSubstitutor != null) {
+                        it.substitute(context, fieldIndexSubstitutor)
+                    } else {
+                        it
+                    }
+                }
+
+                (indexTy is ITyPrimitive && indexTy.primitiveKind == TyPrimitiveKind.String)
+                        || (indexTy is TyPrimitiveLiteral && indexTy.primitiveKind == TyPrimitiveKind.String && indexTy.value == name)
+            }
+        }?.let {
+            process(this, it)
+        } ?: true
+    }
+
+    override fun processIndexer(context: SearchContext, indexTy: ITy, exact: Boolean, deep: Boolean, indexerSubstitutor: ITySubstitutor?, process: ProcessTypeMember): Boolean {
+        var narrowestTypeMember: TypeMember? = null
+        var narrowestIndexTy: ITy? = null
+
+        val fieldIndexSubstitutor = TyChainSubstitutor.chain(getMemberSubstitutor(context), indexerSubstitutor)
+
+        psi.tableFieldList.forEach { field ->
+            val candidateIndexerTy = (field.guessIndexType(context) ?: field.name?.let {
+                TyPrimitiveLiteral.getTy(TyPrimitiveKind.String, it)
+            })?.let {
+                if (fieldIndexSubstitutor != null) {
+                    it.substitute(context, fieldIndexSubstitutor)
+                } else {
+                    it
+                }
+            }
+
+            if ((!exact && candidateIndexerTy?.contravariantOf(context, indexTy, TyVarianceFlags.STRICT_UNKNOWN) == true)
+                || candidateIndexerTy == indexTy) {
+                if (narrowestIndexTy?.contravariantOf(context, candidateIndexerTy, TyVarianceFlags.STRICT_UNKNOWN) != false) {
+                    narrowestTypeMember = field
+                    narrowestIndexTy = candidateIndexerTy
+                }
+            }
+        }
+
+        return narrowestTypeMember?.let { process(this, it) } ?: true
+    }
+
+    override fun substitute(context: SearchContext, substitutor: ITySubstitutor): ITy {
+        return TySubstitutedDocTable(this, substitutor)
+    }
+}
+
+class TySubstitutedDocTable(docTable: TyDocTable, val substitutor: ITySubstitutor): TyDocTable(docTable.psi, getSubstitutedDocTableTypeName(docTable.psi)) {
+    init {
+        // TODO: This is a hack. This just convinces the LuaClassMemberIndex to look for members using the parent doc
+        //       table's name. Instead we should implement processMember/Indexer and call LuaClassMemberIndex with the
+        //       parent doc table's name. However, "sub-classes" of substituted doc tables would call into
+        //       LuaClassMemberIndex, and it presently doesn't call back out to processMember/Indexer on parent types.
+        //       See notes on LuaClassMemberIndex.
+        superClass = docTable
+    }
+
+    override fun getMemberSubstitutor(context: SearchContext): ITySubstitutor? {
+        return TyChainSubstitutor.chain(super.getMemberSubstitutor(context), substitutor)
+    }
+}
+
+class TyLazySubstitutedTable(context: SearchContext, table: TyTable, val substitutor: ITySubstitutor): TyTable(table.psi, getSubstitutedTableTypeName(context, table.psi, substitutor)) {
+    init {
+        // TODO: This is a hack. This just convinces the LuaClassMemberIndex to look for members using the parent
+        //       table's name. Instead we should implement processMember/Indexer and call LuaClassMemberIndex with the
+        //       parent doc table's name. However, "sub-classes" of substituted doc tables would call into
+        //       LuaClassMemberIndex, and it presently doesn't call back out to processMember/Indexer on parent types.
+        //       See notes on LuaClassMemberIndex.
+        superClass = table
+    }
+
+    override fun getMemberSubstitutor(context: SearchContext): ITySubstitutor? {
+        return TyChainSubstitutor.chain(super.getMemberSubstitutor(context), substitutor)
+    }
+
+    override fun substitute(context: SearchContext, substitutor: ITySubstitutor): ITy {
+        var alreadySubstituted = this.substitutor.name == substitutor.name;
+
+        if (!alreadySubstituted) {
+            Ty.processSuperClasses(context, this) { superTy ->
+                if (superTy is TyLazySubstitutedTable) {
+                    alreadySubstituted = superTy.substitutor.name == substitutor.name
+                    !alreadySubstituted
+                } else {
+                    false
+                }
+            }
+        }
+
+        return if (alreadySubstituted) {
+            this
+        } else {
+            TyLazySubstitutedTable(context, this, substitutor)
+        }
     }
 }
 
@@ -373,20 +912,26 @@ class TySerializedDocTable(name: String) : TySerializedClass(name) {
 object TyClassSerializer : TySerializer<ITyClass>() {
     override fun deserializeTy(flags: Int, stream: StubInputStream): ITyClass {
         val className = stream.readName()
+        val params = stream.readGenericParamsNullable()
         val varName = stream.readName()
-        val superName = stream.readName()
+        val superClass = stream.readTyNullable()
+        val signatures = stream.readSignatureNullable()
         val aliasName = stream.readName()
         return createSerializedClass(StringRef.toString(className),
+                params,
                 StringRef.toString(varName),
-                StringRef.toString(superName),
+                superClass,
+                signatures,
                 StringRef.toString(aliasName),
                 flags)
     }
 
     override fun serializeTy(ty: ITyClass, stream: StubOutputStream) {
         stream.writeName(ty.className)
+        stream.writeGenericParamsNullable(ty.params)
         stream.writeName(ty.varName)
-        stream.writeName(ty.superClassName)
+        stream.writeTyNullable(ty.superClass)
+        stream.writeSignaturesNullable(ty.signatures)
         stream.writeName(ty.aliasName)
     }
 }

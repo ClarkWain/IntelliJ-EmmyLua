@@ -23,6 +23,7 @@ import com.intellij.codeInsight.hints.Option
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.tang.intellij.lua.psi.*
+import com.tang.intellij.lua.search.PsiSearchContext
 import com.tang.intellij.lua.search.SearchContext
 import com.tang.intellij.lua.ty.*
 import java.util.*
@@ -62,47 +63,51 @@ class LuaParameterHintsProvider : InlayParameterHintsProvider {
             @Suppress("UnnecessaryVariable")
             val callExpr = psi
             val args = callExpr.args as? LuaListArgs ?: return list
-            val exprList = args.exprList
+            val exprList = args.expressionList
             val context = SearchContext.get(callExpr.getProject())
             val type = callExpr.guessParentType(context)
-            val ty = TyUnion.find(type, ITyFunction::class.java) ?: return list
 
-            // 是否是 inst:method() 被用为 inst.method(self) 形式
-            val isInstanceMethodUsedAsStaticMethod = ty.isColonCall && callExpr.isMethodDotCall
-            val sig = ty.findPerfectSignature(callExpr)
+            if (type != null) {
+                val ty = TyUnion.find(type, ITyFunction::class.java) ?: return list
 
-            sig.processArgs(null, callExpr.isMethodColonCall) { index, paramInfo ->
-                val expr = exprList.getOrNull(index) ?: return@processArgs false
-                val show =
-                if (index == 0 && isInstanceMethodUsedAsStaticMethod) {
+                // 是否是 inst:method() 被用为 inst.method(self) 形式
+                val isInstanceMethodUsedAsStaticMethod = ty.isColonCall && callExpr.isMethodDotCall
+                val searchContext = PsiSearchContext(callExpr)
+
+                val sig = ty.matchSignature(searchContext, callExpr)?.substitutedSignature
+
+                sig?.processParameters(null, callExpr.isMethodColonCall) { index, paramInfo ->
+                    val expr = exprList.getOrNull(index) ?: return@processParameters false
+                    val show =
+                            if (index == 0 && isInstanceMethodUsedAsStaticMethod) {
+                                true
+                            } else PsiTreeUtil.instanceOf(expr, *EXPR_HINT)
+                    if (show)
+                        list.add(InlayInfo(paramInfo.name, expr.node.startOffset))
                     true
-                } else PsiTreeUtil.instanceOf(expr, *EXPR_HINT)
-                if (show)
-                    list.add(InlayInfo(paramInfo.name, expr.node.startOffset))
-                true
-            }
-        }
-        else if (psi is LuaParamNameDef) {
-            if (PARAMETER_TYPE_HINT.get()) {
-                val type = psi.guessType(SearchContext.get(psi.project))
-                if (!Ty.isInvalid(type)) {
-                    return listOf(InlayInfo("$TYPE_INFO_PREFIX${type.displayName}", psi.textOffset + psi.textLength))
                 }
             }
         }
-        else if (psi is LuaNameDef) {
+        else if (psi is LuaParamDef) {
+            if (PARAMETER_TYPE_HINT.get()) {
+                psi.guessType(SearchContext.get(psi.project))?.let {
+                    return listOf(InlayInfo("$TYPE_INFO_PREFIX${it.displayName}", psi.textOffset + psi.textLength))
+                }
+            }
+        }
+        else if (psi is LuaLocalDef) {
             if (LOCAL_VARIABLE_HINT.get()) {
                 val type = psi.guessType(SearchContext.get(psi.project))
-                if (!Ty.isInvalid(type)) {
+                if (type != null) {
                     return listOf(InlayInfo("$TYPE_INFO_PREFIX${type.displayName}", psi.textOffset + psi.textLength))
                 }
             }
         }
-        else if (psi is LuaFuncBodyOwner) {
+        else if (psi is LuaFuncBodyOwner<*>) {
             val paren = psi.funcBody?.rparen
             if (FUNCTION_HINT.get() && paren != null) {
                 val type = psi.guessReturnType(SearchContext.get(psi.project))
-                if (!Ty.isInvalid(type)) {
+                if (type != null) {
                     return listOf(InlayInfo("$TYPE_INFO_PREFIX${type.displayName}", paren.textOffset + paren.textLength))
                 }
             }

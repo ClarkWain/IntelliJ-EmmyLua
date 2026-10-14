@@ -1,7 +1,17 @@
 ![logo](/snapshot/logo.png)
 # EmmyLua for IntelliJ IDEA
 
-[![Build status](https://github.com/EmmyLua/IntelliJ-EmmyLua/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/EmmyLua/IntelliJ-EmmyLua/actions/workflows/build.yml)
+本 fork 将 [Luanalysis](https://github.com/Benjamin-Dobell/IntelliJ-Luanalysis) 的类型系统迁入当前 EmmyLua，保留上游调试器和平台适配。
+
+- 新增 `@shape`、泛型类与别名、递归别名、`@type` / `@not` 转换、索引字段、可调用类型、可选参数和可变返回值等支持。
+- 已针对 **Android Studio 2025.2.3 / IntelliJ 平台 252** 构建、测试并实际运行验证。
+- 安装本 fork 的 ZIP：Settings → Plugins → 齿轮菜单 → Install Plugin from Disk。插件 ID 沿用 EmmyLua 的 `com.tang`，会替换已有 EmmyLua；不要同时启用 Luanalysis。
+- 类型安全检查默认启用，类型不匹配默认显示为错误；可以在 IDE 的 Inspections 设置中调整。
+
+完整特性与来源见 [迁移说明](docs/luanalysis-migration.md)，验证版本、测试和截图见 [验证记录](docs/validation.md)。
+本地复验可运行 `scripts/validate-local.ps1 -IdePath <IDE安装目录>`。
+
+[![Build status](https://github.com/ClarkWain/IntelliJ-EmmyLua/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/ClarkWain/IntelliJ-EmmyLua/actions/workflows/build.yml)
 [![Online EmmyLua Doc](https://img.shields.io/badge/emmy-doc-46BC99.svg?style=flat-square)](https://emmylua.github.io)
 [![在线文档](https://img.shields.io/badge/emmy-中文-46BC99.svg?style=flat-square)](https://emmylua.github.io/zh_CN)
 [![Jetbrains plugin](https://img.shields.io/jetbrains/plugin/d/9768-emmylua.svg?style=flat-square)](https://plugins.jetbrains.com/plugin/9768-emmylua)

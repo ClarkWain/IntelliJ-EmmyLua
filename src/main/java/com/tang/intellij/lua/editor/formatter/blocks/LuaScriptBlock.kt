@@ -27,7 +27,6 @@ import com.intellij.psi.tree.TokenSet
 import com.tang.intellij.lua.editor.formatter.LuaFormatContext
 import com.tang.intellij.lua.psi.*
 import com.tang.intellij.lua.psi.LuaTypes.*
-import java.util.*
 
 /**
 
@@ -131,7 +130,7 @@ open class LuaScriptBlock(val psi: PsiElement,
             is LuaIndentRange -> LuaIndentBlock(element, wrap, alignment, childIndent, ctx)
             is LuaIndexExpr -> LuaIndexExprBlock(element, wrap, alignment, childIndent, ctx)
             is LuaAssignStat,
-            is LuaLocalDef -> LuaAssignBlock(element, wrap, alignment, childIndent, ctx)
+            is LuaLocalDefStat -> LuaAssignBlock(element, wrap, alignment, childIndent, ctx)
             else -> LuaScriptBlock(element, wrap, alignment, childIndent, ctx)
         }
         block.parent = this
@@ -139,9 +138,11 @@ open class LuaScriptBlock(val psi: PsiElement,
     }
 
     override fun getSpacing(child1: Block?, child2: Block): Spacing? {
-        if ((child1 is LuaScriptBlock && child1.psi is LuaStatement) &&
-                (child2 is LuaScriptBlock && child2.psi is LuaStatement)) {
-            return Spacing.createSpacing(1, 0, 1, true, 1)
+        if (!ctx.luaSettings.KEEP_MULTIPLE_STATEMENTS_IN_ONE_LINE) {
+            if ((child1 is LuaScriptBlock && child1.psi is LuaStatement) &&
+                    (child2 is LuaScriptBlock && child2.psi is LuaStatement)) {
+                return Spacing.createSpacing(1, 0, 1, true, 1)
+            }
         }
         return ctx.spaceBuilder.getSpacing(this, child1, child2)
     }

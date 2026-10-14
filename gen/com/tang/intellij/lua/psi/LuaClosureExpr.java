@@ -4,21 +4,24 @@ package com.tang.intellij.lua.psi;
 import java.util.List;
 import org.jetbrains.annotations.*;
 import com.intellij.psi.PsiElement;
-import com.tang.intellij.lua.stubs.LuaExprStubElement;
 import com.tang.intellij.lua.stubs.LuaClosureExprStub;
+import com.intellij.psi.StubBasedPsiElement;
 import com.tang.intellij.lua.search.SearchContext;
 import com.tang.intellij.lua.ty.ITy;
 
-public interface LuaClosureExpr extends LuaExpr, LuaFuncBodyOwner, LuaExprStubElement<LuaClosureExprStub> {
+public interface LuaClosureExpr extends LuaFuncBodyOwner<LuaClosureExprStub>, LuaExpression<LuaClosureExprStub>, LuaTypeScope, StubBasedPsiElement<LuaClosureExprStub> {
 
-  @Nullable
+  @NotNull
   LuaFuncBody getFuncBody();
 
   @NotNull
-  List<LuaParamNameDef> getParamNameDefList();
+  List<LuaParamDef> getParamDefList();
+
+  @Nullable
+  ITy guessReturnType(@NotNull SearchContext context);
 
   @NotNull
-  ITy guessReturnType(@NotNull SearchContext searchContext);
+  ITy guessParentType(@NotNull SearchContext context);
 
   @NotNull
   LuaParamInfo[] getParams();

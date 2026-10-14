@@ -22,14 +22,11 @@ import com.intellij.codeInsight.lookup.LookupElementBuilder
 import com.intellij.codeInsight.template.Template
 import com.intellij.codeInsight.template.TemplateManager
 import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.util.Processor
 import com.tang.intellij.lua.lang.LuaIcons
 import com.tang.intellij.lua.psi.*
-import com.tang.intellij.lua.psi.search.LuaShortNamesManager
 import com.tang.intellij.lua.search.SearchContext
-import com.tang.intellij.lua.ty.ITyClass
-import com.tang.intellij.lua.ty.TyClass
-import com.tang.intellij.lua.ty.TyLazyClass
+import com.tang.intellij.lua.stubs.index.LuaClassMemberIndex
+import com.tang.intellij.lua.ty.*
 
 /**
  * override supper
@@ -40,50 +37,70 @@ class OverrideCompletionProvider : LuaCompletionProvider() {
         val completionParameters = session.parameters
         val completionResultSet = session.resultSet
         val id = completionParameters.position
-        val methodDef = PsiTreeUtil.getParentOfType(id, LuaClassMethodDef::class.java)
+        val methodDef = PsiTreeUtil.getParentOfType(id, LuaClassMethodDefStat::class.java)
         if (methodDef != null) {
             val context = SearchContext.get(methodDef.project)
-            val classType = methodDef.guessClassType(context)
+            val classType = methodDef.guessParentClass(context)
             if (classType != null) {
                 val memberNameSet = mutableSetOf<String>()
-                classType.processMembers(context, { _, m ->
+                classType.processMembers(context, false) { _, m ->
                     m.name?.let { memberNameSet.add(it) }
-                }, false)
-                TyClass.processSuperClass(classType, context) { sup ->
-                    addOverrideMethod(completionParameters, completionResultSet, memberNameSet, sup)
+                    true
+                }
+                Ty.processSuperClasses(context, classType) { sup ->
+                    val clazz = (if (sup is ITyGeneric) sup.base else sup) as? ITyClass
+                    if (clazz != null) {
+                        addOverrideMethod(completionParameters, completionResultSet, memberNameSet, clazz)
+                    }
                     true
                 }
             }
         }
     }
 
-    private fun addOverrideMethod(completionParameters: CompletionParameters, completionResultSet: CompletionResultSet, memberNameSet:MutableSet<String>, sup: ITyClass) {
+    private fun addOverrideMethod(completionParameters: CompletionParameters, completionResultSet: CompletionResultSet, memberNameSet: MutableSet<String>, sup: ITyClass) {
         val project = completionParameters.originalFile.project
         val context = SearchContext.get(project)
         val clazzName = sup.className
-        LuaShortNamesManager.getInstance(project).processMembers(TyLazyClass(clazzName), context, Processor { def ->
-            if (def is LuaClassMethod) {
-                def.name?.let {
-                    if (memberNameSet.add(it)) {
-                        val elementBuilder = LookupElementBuilder.create(def.name!!)
-                                .withIcon(LuaIcons.CLASS_METHOD_OVERRIDING)
-                                .withInsertHandler(OverrideInsertHandler(def))
-                                .withTailText(def.paramSignature)
+        LuaClassMemberIndex.processAll(context, TyLazyClass(clazzName)) { _, member ->
+            member.name?.let { memberName ->
+                if (!memberNameSet.contains(memberName)) {
+                    if (member is LuaTypeMethod<*>) {
+                        val elementBuilder = LookupElementBuilder.create(memberName)
+                            .withIcon(LuaIcons.CLASS_METHOD_OVERRIDING)
+                            .withInsertHandler(OverrideInsertHandler(member.params, member.varargType != null))
+                            .withTailText(member.paramSignature)
 
                         completionResultSet.addElement(elementBuilder)
+                        memberNameSet.add(memberName)
+                    } else {
+                        val memberTy = member.guessType(context)
+
+                        if (memberTy is ITyFunction) {
+                            val mainSignature = memberTy.mainSignature
+                            val params = mainSignature.params ?: arrayOf()
+
+                            val elementBuilder = LookupElementBuilder.create(memberName)
+                                .withIcon(LuaIcons.CLASS_METHOD_OVERRIDING)
+                                .withInsertHandler(OverrideInsertHandler(params, mainSignature.hasVarargs()))
+                                .withTailText(getParamSignature(params))
+
+                            completionResultSet.addElement(elementBuilder)
+                            memberNameSet.add(memberName)
+                        }
                     }
                 }
             }
             true
-        })
+        }
     }
 
-    internal class OverrideInsertHandler(funcBodyOwner: LuaFuncBodyOwner) : FuncInsertHandler(funcBodyOwner) {
+    internal class OverrideInsertHandler(override val params: Array<out LuaParamInfo>, override val isVarargs: Boolean) : ArgsInsertHandler() {
 
         override val autoInsertParameters = true
 
-        override fun createTemplate(manager: TemplateManager, paramNameDefList: Array<LuaParamInfo>): Template {
-            val template = super.createTemplate(manager, paramNameDefList)
+        override fun createTemplate(manager: TemplateManager, paramDefList: Array<out LuaParamInfo>): Template {
+            val template = super.createTemplate(manager, paramDefList)
             template.addEndVariable()
             template.addTextSegment("\nend")
             return template

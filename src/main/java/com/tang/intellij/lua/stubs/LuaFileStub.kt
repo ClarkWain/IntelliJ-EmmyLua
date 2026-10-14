@@ -26,6 +26,7 @@ import com.intellij.util.io.StringRef
 import com.tang.intellij.lua.lang.LuaLanguage
 import com.tang.intellij.lua.lang.LuaParserDefinition
 import com.tang.intellij.lua.psi.LuaPsiFile
+import com.tang.intellij.lua.search.SearchContext
 
 /**
 
@@ -61,7 +62,12 @@ class LuaFileElementType : IStubFileElementType<LuaFileStub>(LuaLanguage.INSTANC
             override fun createStubForFile(file: PsiFile): StubElement<*> {
                 if (file is LuaPsiFile){
                     isTooLarger = file.tooLarger
-                    return LuaFileStub(file)
+
+                    val moduleName = SearchContext.withDumb(file.project, null) {
+                        file.getModuleName(it)
+                    }
+
+                    return LuaFileStub(file, moduleName)
                 }
                 return super.createStubForFile(file)
             }
@@ -74,7 +80,6 @@ class LuaFileElementType : IStubFileElementType<LuaFileStub>(LuaLanguage.INSTANC
 
     override fun serialize(stub: LuaFileStub, dataStream: StubOutputStream) {
         dataStream.writeName(stub.module)
-        dataStream.writeUTFFast(stub.uid)
         if (LOG.isTraceEnabled) {
             println("--------- START: ${stub.psi.name}")
             println(stub.printTree())
@@ -84,24 +89,23 @@ class LuaFileElementType : IStubFileElementType<LuaFileStub>(LuaLanguage.INSTANC
 
     override fun deserialize(dataStream: StubInputStream, parentStub: StubElement<*>?): LuaFileStub {
         val moduleRef = dataStream.readName()
-        val uid = dataStream.readUTFFast()
-        return LuaFileStub(null, StringRef.toString(moduleRef), uid)
+        return LuaFileStub(null, StringRef.toString(moduleRef))
     }
 
     override fun getExternalId() = "lua.file"
+
+    // The migrated type system changes stub serialization. Rebuild existing EmmyLua indexes.
+    override fun getStubVersion(): Int = 2
 }
 
 class LuaFileStub : PsiFileStubImpl<LuaPsiFile> {
     private var file: LuaPsiFile? = null
     private var moduleName:String? = null
 
-    val uid: String
+    constructor(file: LuaPsiFile) : this(file, null)
 
-    constructor(file: LuaPsiFile) : this(file, file.moduleName, file.uid)
-
-    constructor(file: LuaPsiFile?, module:String?, uid: String) : super(file) {
+    constructor(file: LuaPsiFile?, module:String?) : super(file) {
         this.file = file
-        this.uid = uid
         moduleName = module
     }
 

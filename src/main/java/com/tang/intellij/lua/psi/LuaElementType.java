@@ -21,7 +21,6 @@ import com.intellij.lang.PsiBuilder;
 import com.intellij.lang.PsiBuilderFactory;
 import com.intellij.lang.PsiParser;
 import com.intellij.openapi.project.Project;
-import com.intellij.psi.stubs.IStubElementType;
 import com.intellij.psi.tree.CustomParsingType;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.tree.ILazyParseableElementType;
@@ -59,18 +58,19 @@ public class LuaElementType extends IElementType {
         }
     };
 
-    public static IStubElementType FUNC_DEF = new LuaFuncType();
-    public static IStubElementType CLASS_METHOD_DEF = new LuaClassMethodType();
+    public static LuaStubElementType FUNC_DEF_STAT = new LuaFuncType();
+    public static LuaStubElementType CLASS_METHOD_DEF_STAT = new LuaClassMethodType();
     public static LuaStubElementType CLASS_FIELD_DEF = new LuaDocTagFieldType();
     public static LuaStubElementType TYPE_DEF = new LuaDocTagTypeType();
     public static LuaStubElementType CLASS_DEF = new LuaDocTagClassType();
     public static LuaStubElementType DOC_TABLE_DEF = new LuaDocTableDefType();
     public static LuaStubElementType DOC_TABLE_FIELD_DEF = new LuaDocTableFieldType();
     public static LuaStubElementType DOC_ALIAS = new LuaDocTagAliasType();
-    public static IStubElementType TABLE = new LuaTableExprType();
-    public static IStubElementType TABLE_FIELD = new LuaTableFieldType();
-    public static IStubElementType INDEX = new LuaIndexExprType();
-    public static IStubElementType NAME_EXPR = new LuaNameExprType();
+    public static LuaStubElementType DOC_NOT = new LuaDocTagNotType();
+    public static LuaStubElementType TABLE = new LuaTableExprType();
+    public static LuaStubElementType TABLE_FIELD = new LuaTableFieldType();
+    public static LuaStubElementType INDEX = new LuaIndexExprType();
+    public static LuaStubElementType NAME_EXPR = new LuaNameExprType();
     public static ILazyParseableElementType BLOCK = new LuaBlockElementType();
 
     static class LuaBlockElementType extends IReparseableElementType {
@@ -99,7 +99,7 @@ public class LuaElementType extends IElementType {
         }
     }
 
-    public static LuaNameDefElementType NAME_DEF = new LuaNameDefElementType();
-    public static ParamNameDefElementType PARAM_NAME_DEF = new ParamNameDefElementType();
+    public static LuaLocalDefElementType LOCAL_DEF = new LuaLocalDefElementType();
+    public static LuaParamDefElementType PARAM_DEF = new LuaParamDefElementType();
     public static LuaLiteralElementType LITERAL_EXPR = new LuaLiteralElementType();
 }

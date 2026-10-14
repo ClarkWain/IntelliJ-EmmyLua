@@ -18,7 +18,6 @@ package com.tang.intellij.lua.editor.completion
 
 import com.intellij.codeInsight.lookup.LookupElementBuilder
 import com.intellij.psi.tree.TokenSet
-import com.intellij.util.Processor
 import com.tang.intellij.lua.Constants
 import com.tang.intellij.lua.lang.LuaIcons
 import com.tang.intellij.lua.lang.LuaParserDefinition
@@ -37,25 +36,36 @@ class LocalAndGlobalCompletionProvider(private val mask: Int) : ClassMemberCompl
     }
 
     private fun addCompletion(name:String, session: CompletionSession, psi: LuaPsiElement) {
+        val ctx = SearchContext.get(psi.project)
         val addTy = {ty: ITyFunction ->
             val icon = if (ty.isGlobal)
                 LuaIcons.GLOBAL_FUNCTION
             else
                 LuaIcons.LOCAL_FUNCTION
 
-            ty.process(Processor {
+            ty.processSignatures(ctx) {
                 val le = LookupElementFactory.createFunctionLookupElement(name, psi, it, false, ty, icon)
                 session.resultSet.addElement(le)
                 true
-            })
-        }
-        val ctx = SearchContext.get(psi.project)
-        when (psi) {
-            is LuaFuncBodyOwner -> {
-                addTy(psi.guessType(ctx) as ITyFunction)
             }
-            is LuaTypeGuessable -> {
+        }
+        when (psi) {
+            is LuaFuncBodyOwner<*> -> {
+                psi.guessType(ctx)?.let {
+                    TyUnion.each(it) {
+                        if (it is ITyFunction) {
+                            addTy(it)
+                        }
+                    }
+                }
+            }
+            is LuaPsiTypeGuessable -> {
                 val type = psi.guessType(ctx)
+
+                if (type == null) {
+                    return
+                }
+
                 var isFn = false
                 TyUnion.each(type) {
                     if (it is ITyFunction) {
@@ -65,7 +75,7 @@ class LocalAndGlobalCompletionProvider(private val mask: Int) : ClassMemberCompl
                 }
                 if (!isFn) {
                     var icon = LuaIcons.LOCAL_VAR
-                    if (psi is LuaParamNameDef)
+                    if (psi is LuaParamDef)
                         icon = LuaIcons.PARAMETER
 
                     val elementBuilder = LookupElementFactory.createGuessableLookupElement(name, psi, type, icon)
@@ -80,14 +90,15 @@ class LocalAndGlobalCompletionProvider(private val mask: Int) : ClassMemberCompl
         val completionResultSet = session.resultSet
         val cur = completionParameters.position
         val nameExpr = cur.parent
+        val context = SearchContext.get(nameExpr.project)
 
         //module members
         if (nameExpr is LuaNameExpr) {
-            val moduleName = nameExpr.moduleName
+            val moduleName = nameExpr.getModuleName(context)
             if (moduleName != null) {
-                val ty = TyLazyClass(moduleName)
-                val contextTy = LuaPsiTreeUtil.findContextClass(nameExpr)
-                addClass(contextTy, ty, cur.project, MemberCompletionMode.Dot, completionResultSet, completionResultSet.prefixMatcher, null)
+                val ty = TyLazyClass(moduleName, nameExpr)
+                val contextTy = LuaPsiTreeUtil.findContextClass(context, nameExpr)
+                addClass(context, contextTy, ty, MemberCompletionMode.Dot, completionResultSet, completionResultSet.prefixMatcher, null)
             }
         }
 
@@ -97,22 +108,21 @@ class LocalAndGlobalCompletionProvider(private val mask: Int) : ClassMemberCompl
         //local
         if (has(LOCAL_FUN) || has(LOCAL_VAR)) {
             LuaDeclarationTree.get(cur.containingFile).walkUpLocal(cur) {
-                val nameDef = it.psi
+                val localDef = it.psi
                 val name = it.name
-                if (nameDef is LuaPsiElement &&
+                if (localDef is LuaPsiElement &&
                         completionResultSet.prefixMatcher.prefixMatches(name) &&
                         localNamesSet.add(name)) {
                     session.addWord(name)
-                    addCompletion(name, session, nameDef)
+                    addCompletion(name, session, localDef)
                 }
                 true
             }
         }
 
         //global
-        val project = cur.project
         if (has(GLOBAL_FUN) || has(GLOBAL_VAR)) {
-            addClass(TyClass.G, TyClass.G, project, MemberCompletionMode.Dot, completionResultSet, completionResultSet.prefixMatcher, null)
+            addClass(context, TyClass.G, TyClass.G, MemberCompletionMode.Dot, completionResultSet, completionResultSet.prefixMatcher, null)
         }
         //key words
         if (has(KEY_WORDS)) {

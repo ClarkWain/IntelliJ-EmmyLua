@@ -12,7 +12,7 @@ import com.intellij.extapi.psi.StubBasedPsiElementBase;
 import com.tang.intellij.lua.stubs.LuaTableFieldStub;
 import com.tang.intellij.lua.psi.*;
 import com.intellij.navigation.ItemPresentation;
-import com.tang.intellij.lua.comment.psi.api.LuaComment;
+import com.tang.intellij.lua.comment.psi.LuaDocTy;
 import com.tang.intellij.lua.search.SearchContext;
 import com.tang.intellij.lua.ty.ITy;
 import com.intellij.psi.stubs.IStubElementType;
@@ -20,7 +20,7 @@ import com.intellij.psi.tree.IElementType;
 
 public class LuaTableFieldImpl extends StubBasedPsiElementBase<LuaTableFieldStub> implements LuaTableField {
 
-  public LuaTableFieldImpl(@NotNull LuaTableFieldStub stub, @NotNull IStubElementType type) {
+  public LuaTableFieldImpl(@NotNull LuaTableFieldStub stub, @NotNull IStubElementType<?, ?> type) {
     super(stub, type);
   }
 
@@ -36,15 +36,10 @@ public class LuaTableFieldImpl extends StubBasedPsiElementBase<LuaTableFieldStub
     visitor.visitTableField(this);
   }
 
+  @Override
   public void accept(@NotNull PsiElementVisitor visitor) {
     if (visitor instanceof LuaVisitor) accept((LuaVisitor)visitor);
     else super.accept(visitor);
-  }
-
-  @Override
-  @NotNull
-  public List<LuaExpr> getExprList() {
-    return PsiTreeUtil.getStubChildrenOfTypeAsList(this, LuaExpr.class);
   }
 
   @Override
@@ -83,15 +78,15 @@ public class LuaTableFieldImpl extends StubBasedPsiElementBase<LuaTableFieldStub
   }
 
   @Override
-  @Nullable
-  public String getFieldName() {
-    return LuaPsiImplUtilKt.getFieldName(this);
-  }
-
-  @Override
   @NotNull
   public ItemPresentation getPresentation() {
     return LuaPsiImplUtilKt.getPresentation(this);
+  }
+
+  @Override
+  @Nullable
+  public ITy guessIndexType(@NotNull SearchContext context) {
+    return LuaPsiImplUtilKt.guessIndexType(this, context);
   }
 
   @Override
@@ -101,14 +96,15 @@ public class LuaTableFieldImpl extends StubBasedPsiElementBase<LuaTableFieldStub
   }
 
   @Override
-  @NotNull
-  public Visibility getVisibility() {
-    return LuaPsiImplUtilKt.getVisibility(this);
+  @Nullable
+  public LuaDocTy getIndexType() {
+    return LuaPsiImplUtilKt.getIndexType(this);
   }
 
   @Override
-  public int getWorth() {
-    return LuaPsiImplUtilKt.getWorth(this);
+  @NotNull
+  public Visibility getVisibility() {
+    return LuaPsiImplUtilKt.getVisibility(this);
   }
 
   @Override
@@ -117,15 +113,26 @@ public class LuaTableFieldImpl extends StubBasedPsiElementBase<LuaTableFieldStub
   }
 
   @Override
-  @Nullable
-  public LuaComment getComment() {
-    return LuaPsiImplUtilKt.getComment(this);
+  public boolean isExplicitlyTyped() {
+    return LuaPsiImplUtilKt.isExplicitlyTyped(this);
   }
 
   @Override
   @Nullable
-  public LuaExpr getIdExpr() {
+  public LuaExpression<?> getIdExpr() {
     return LuaPsiImplUtilKt.getIdExpr(this);
+  }
+
+  @Override
+  @Nullable
+  public LuaExpression<?> getValueExpr() {
+    return LuaPsiImplUtilKt.getValueExpr(this);
+  }
+
+  @Override
+  @NotNull
+  public List<LuaExpression<?>> getExpressionList() {
+    return LuaPsiImplUtilKt.getExpressionList(this);
   }
 
   @Override

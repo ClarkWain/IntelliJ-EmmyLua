@@ -22,15 +22,13 @@ import com.intellij.psi.stubs.StubInputStream
 import com.intellij.psi.stubs.StubOutputStream
 import com.intellij.util.BitUtil
 import com.intellij.util.io.StringRef
+import com.tang.intellij.lua.Constants
 import com.tang.intellij.lua.psi.*
 import com.tang.intellij.lua.psi.impl.LuaIndexExprImpl
 import com.tang.intellij.lua.search.SearchContext
 import com.tang.intellij.lua.stubs.index.LuaClassMemberIndex
 import com.tang.intellij.lua.stubs.index.StubKeys
-import com.tang.intellij.lua.ty.ITy
-import com.tang.intellij.lua.ty.ITyClass
-import com.tang.intellij.lua.ty.Ty
-import com.tang.intellij.lua.ty.TyUnion
+import com.tang.intellij.lua.ty.*
 
 /**
 
@@ -48,11 +46,11 @@ class LuaIndexExprType : LuaStubElementType<LuaIndexExprStub, LuaIndexExpr>("IND
      * a().b.c => false
      */
     private fun LuaIndexExpr.isPure(): Boolean {
-        var prev = this.prefixExpr
+        var prev = this.prefixExpression
         while (true) {
             when (prev) {
                 is LuaNameExpr -> return true
-                is LuaIndexExpr -> prev = prev.prefixExpr
+                is LuaIndexExpr -> prev = prev.prefixExpression
                 else -> return false
             }
         }
@@ -69,26 +67,37 @@ class LuaIndexExprType : LuaStubElementType<LuaIndexExprStub, LuaIndexExpr>("IND
         val classNameSet = mutableSetOf<String>()
 
         if (stat != null) {
-            val ty = SearchContext.withStub(indexExpr.project, indexExpr.containingFile, Ty.UNKNOWN) {
+            val ty = SearchContext.withDumb(indexExpr.project, Primitives.UNKNOWN) {
                 indexExpr.guessParentType(it)
             }
+
+            val isSelf = (indexExpr.expressionList.firstOrNull() as? LuaNameExpr)?.name == Constants.WORD_SELF
+
             TyUnion.each(ty) {
-                if (it is ITyClass)
+                if (it is ITyClass && it !is ITyPrimitive && (isSelf || it !is TySerializedClass)) {
                     classNameSet.add(it.className)
+                }
             }
         }
-        val visibility = indexExpr.visibility
 
+        val visibility = indexExpr.visibility
         var flags = BitUtil.set(0, visibility.bitMask, true)
-        flags = BitUtil.set(flags, FLAG_DEPRECATED, indexExpr.isDeprecated)
-        flags = BitUtil.set(flags, FLAG_BRACK, indexExpr.lbrack != null)
-        flags = BitUtil.set(flags, FLAG_ASSIGN, stat != null)
+        flags = BitUtil.set(flags, LuaIndexExprType.FLAG_DEPRECATED, indexExpr.isDeprecated)
+        flags = BitUtil.set(flags, LuaIndexExprType.FLAG_BRACK, indexExpr.lbrack != null)
+        flags = BitUtil.set(flags, LuaIndexExprType.FLAG_ASSIGN, stat != null)
+        flags = BitUtil.set(flags, LuaIndexExprType.FLAG_EXPLICITLY_TYPED, indexExpr.isExplicitlyTyped)
+
+        val idTy = indexExpr.idExpr?.let {
+            SearchContext.withDumb(indexExpr.project, null) { context ->
+                it.guessType(context)
+            }
+        }
 
         return LuaIndexExprStubImpl(classNameSet.toTypedArray(),
                 indexExpr.name,
+                idTy,
                 flags,
                 docTy,
-                indexExpr.worth,
                 stubElement,
                 this)
     }
@@ -96,35 +105,43 @@ class LuaIndexExprType : LuaStubElementType<LuaIndexExprStub, LuaIndexExpr>("IND
     override fun serialize(indexStub: LuaIndexExprStub, stubOutputStream: StubOutputStream) {
         stubOutputStream.writeNames(indexStub.classNames)
         stubOutputStream.writeName(indexStub.name)
+        stubOutputStream.writeTyNullable(indexStub.idTy)
         stubOutputStream.writeInt(indexStub.flags)
         stubOutputStream.writeTyNullable(indexStub.docTy)
-        stubOutputStream.writeInt(indexStub.worth)
     }
 
     override fun deserialize(stubInputStream: StubInputStream, stubElement: StubElement<*>): LuaIndexExprStub {
         val classNames = stubInputStream.readNames()
         val fieldName = stubInputStream.readName()
+        val idTy = stubInputStream.readTyNullable()
         val flags = stubInputStream.readInt()
         val docTy = stubInputStream.readTyNullable()
-        val worth = stubInputStream.readInt()
         return LuaIndexExprStubImpl(classNames,
                 StringRef.toString(fieldName),
+                idTy,
                 flags,
                 docTy,
-                worth,
                 stubElement,
                 this)
     }
 
     override fun indexStub(indexStub: LuaIndexExprStub, indexSink: IndexSink) {
         val fieldName = indexStub.name
+        val idTy = indexStub.idTy
         val classNames = indexStub.classNames
-        if (indexStub.isAssign && classNames.isNotEmpty() && fieldName != null) {
-            classNames.forEach {
-                LuaClassMemberIndex.indexStub(indexSink, it, fieldName)
-            }
 
-            indexSink.occurrence(StubKeys.SHORT_NAME, fieldName)
+        if (indexStub.isAssign && classNames.isNotEmpty()) {
+            if (fieldName != null) {
+                classNames.forEach {
+                    LuaClassMemberIndex.indexMemberStub(indexSink, it, fieldName)
+                }
+
+                indexSink.occurrence(StubKeys.SHORT_NAME, fieldName)
+            } else if (idTy != null) {
+                classNames.forEach {
+                    LuaClassMemberIndex.indexIndexerStub(indexSink, it, idTy)
+                }
+            }
         }
     }
 
@@ -132,12 +149,14 @@ class LuaIndexExprType : LuaStubElementType<LuaIndexExprStub, LuaIndexExpr>("IND
         const val FLAG_DEPRECATED = 0x20
         const val FLAG_BRACK = 0x40
         const val FLAG_ASSIGN = 0x80
+        const val FLAG_EXPLICITLY_TYPED = 0x100
     }
 }
 
-interface LuaIndexExprStub : LuaExprStub<LuaIndexExpr>, LuaClassMemberStub<LuaIndexExpr>, WorthElement {
+interface LuaIndexExprStub : StubElement<LuaIndexExpr>, LuaClassMemberStub<LuaIndexExpr> {
     val classNames: Array<String>
     val name: String?
+    val idTy: ITy?
     val flags: Int
     val brack: Boolean
     val isAssign: Boolean
@@ -145,14 +164,17 @@ interface LuaIndexExprStub : LuaExprStub<LuaIndexExpr>, LuaClassMemberStub<LuaIn
 
 class LuaIndexExprStubImpl(override val classNames: Array<String>,
                            override val name: String?,
+                           override val idTy: ITy?,
                            override val flags: Int,
                            override val docTy: ITy?,
-                           override val worth: Int,
                            stubElement: StubElement<*>,
                            indexType: LuaIndexExprType)
     : LuaStubBase<LuaIndexExpr>(stubElement, indexType), LuaIndexExprStub {
     override val isDeprecated: Boolean
         get() = BitUtil.isSet(flags, LuaIndexExprType.FLAG_DEPRECATED)
+
+    override val isExplicitlyTyped: Boolean
+        get() = BitUtil.isSet(flags, LuaIndexExprType.FLAG_EXPLICITLY_TYPED)
 
     override val visibility: Visibility
         get() = Visibility.getWithMask(flags)

@@ -17,11 +17,9 @@
 package com.tang.intellij.lua.refactoring.move
 
 import com.intellij.find.findUsages.FindUsagesHandler
-import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiDirectory
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
-import com.intellij.psi.PsiNamedElement
 import com.intellij.refactoring.move.moveFilesOrDirectories.MoveFileHandler
 import com.intellij.usageView.UsageInfo
 import com.tang.intellij.lua.psi.LuaFileUtil
@@ -30,9 +28,7 @@ import com.tang.intellij.lua.reference.LuaRequireReference
 import java.util.*
 
 class LuaMoveFileHandler : MoveFileHandler() {
-    companion object {
-        private val REFERENCED_ELEMENT = Key.create<PsiNamedElement>("LUA_REFERENCED_ELEMENT")
-    }
+    private class RequireUsageInfo(reference: LuaRequireReference, val targetFile: PsiFile) : UsageInfo(reference)
 
     override fun updateMovedFile(file: PsiFile) {
 
@@ -51,8 +47,8 @@ class LuaMoveFileHandler : MoveFileHandler() {
         for (e in elementsToProcess) {
             handler.processElementUsages(e, { usageInfo ->
                 if (!usageInfo.isNonCodeUsage) {
-                    usageInfo.element?.putCopyableUserData(REFERENCED_ELEMENT, file)
-                    usages.add(usageInfo)
+                    val reference = usageInfo.reference
+                    usages.add(if (reference is LuaRequireReference) RequireUsageInfo(reference, file) else usageInfo)
                 }
                 true
             }, FindUsagesHandler.createFindUsagesOptions(file.project, null))
@@ -63,11 +59,8 @@ class LuaMoveFileHandler : MoveFileHandler() {
     override fun retargetUsages(usageInfos: MutableList<out UsageInfo>, oldToNewMap: MutableMap<PsiElement, PsiElement>) {
         for (usageInfo in usageInfos) {
             val reference = usageInfo.reference
-            if (reference is LuaRequireReference) {
-                val element = usageInfo.element!!
-                val file = element.getCopyableUserData(REFERENCED_ELEMENT) as PsiFile
-                element.putCopyableUserData(REFERENCED_ELEMENT, null)
-
+            if (reference is LuaRequireReference && usageInfo is RequireUsageInfo) {
+                val file = oldToNewMap[usageInfo.targetFile] as? PsiFile ?: usageInfo.targetFile
                 val requirePath = LuaFileUtil.asRequirePath(file.project, file.virtualFile)
                 requirePath?.let {
                     reference.setPath(requirePath)

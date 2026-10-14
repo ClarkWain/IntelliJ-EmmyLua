@@ -16,25 +16,28 @@
 
 package com.tang.intellij.lua.codeInsight.inspection
 
-import com.intellij.codeInspection.LocalInspectionTool
-import com.intellij.codeInspection.LocalQuickFix
-import com.intellij.codeInspection.ProblemDescriptor
-import com.intellij.codeInspection.ProblemsHolder
+import com.intellij.codeInspection.*
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.searches.ReferencesSearch
+import com.tang.intellij.lua.lang.LuaFileType
 import com.tang.intellij.lua.psi.*
 import com.tang.intellij.lua.search.SearchContext
 
-class GlobalNameCanbeLocal : LocalInspectionTool() {
-    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
+class GlobalNameCanBeLocal : LocalInspectionTool() {
+    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean, session: LocalInspectionToolSession): PsiElementVisitor {
+        if (session.file.name.matches(LuaFileType.DEFINITION_FILE_REGEX)) {
+            return PsiElementVisitor.EMPTY_VISITOR
+        }
+
         return object : LuaVisitor() {
             override fun visitNameExpr(o: LuaNameExpr) {
+                val context = SearchContext.get(o.project)
                 val stat = o.assignStat
-                if (stat != null && o.moduleName == null) {
+                if (stat != null && o.getModuleName(context) == null) {
                     val name = o.name
-                    val resolve = resolveInFile(name, o, SearchContext.get(o.project))
+                    val resolve = resolveInFile(context, name, o)
                     if (resolve == null) {
                         val scope = GlobalSearchScope.allScope(o.project)
                         val searchScope = scope.intersectWith(GlobalSearchScope.notScope(GlobalSearchScope.fileScope(o.containingFile)))

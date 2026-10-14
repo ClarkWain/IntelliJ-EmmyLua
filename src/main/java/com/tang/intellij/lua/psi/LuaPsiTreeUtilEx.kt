@@ -61,21 +61,21 @@ object LuaPsiTreeUtilEx {
                 var cur: STUB_ELE = stub
                 do {
                     val scope = cur.parentStub
-                    scope.walkUp(cur, Processor { next ->
+                    scope.walkUp(cur) { next ->
                         val element = next.psi
                         when (element) {
-                            is LuaLocalDef -> {
-                                findStubOfType(next, LuaNameDef::class.java) {
+                            is LuaLocalDefStat -> {
+                                findStubOfType(next, LuaLocalDef::class.java) {
                                     continueSearch = processor.process(it)
                                     continueSearch
                                 }
                             }
-                            is LuaParamNameDef -> continueSearch = processor.process(element)
-                            is LuaLocalFuncDef -> continueSearch = processor.process(element)
+                            is LuaParamDef -> continueSearch = processor.process(element)
+                            is LuaLocalFuncDefStat -> continueSearch = processor.process(element)
                             else -> { }
                         }
                         continueSearch
-                    })
+                    }
 
                     if (scope is LuaFileStub)
                         break
@@ -102,31 +102,26 @@ object LuaPsiTreeUtilEx {
             val prev = curr.prevSibling
             if (prev == null) {
                 curr = curr.parent
-                if (curr is LuaLocalDef) {
+                if (curr is LuaLocalDefStat) {
                     continue
                 }
             } else curr = prev
 
             continueSearch = when (curr) {
-                is LuaLocalDef -> resolveInNameList(curr.nameList, processor)
-                is LuaParamNameDef -> processor.process(curr)
-                is LuaLocalFuncDef -> processor.process(curr)
+                is LuaLocalDefStat -> {
+                    curr.localDefList.none {
+                        processor.process(it)
+                    }
+                }
+                is LuaParamDef -> processor.process(curr)
+                is LuaLocalFuncDefStat -> processor.process(curr)
                 is LuaAssignStat -> nameExprProcessor?.process(curr) ?: true
                 else -> true
             }
         } while (continueSearch && curr !is PsiFile)
     }
 
-    private fun resolveInNameList(nameList: LuaNameList?, processor: Processor<PsiNamedElement>): Boolean {
-        if (nameList != null) {
-            for (nameDef in nameList.nameDefList) {
-                if (!processor.process(nameDef)) return false
-            }
-        }
-        return true
-    }
-
-    fun walkUpLocalFuncDef(psi: PsiElement, processor: Processor<LuaLocalFuncDef>) {
+    fun walkUpLocalFuncDefStat(psi: PsiElement, processor: Processor<LuaLocalFuncDefStat>) {
         var continueSearch = true
         if (psi is STUB_PSI) {
             val stub = psi.stub
@@ -134,13 +129,13 @@ object LuaPsiTreeUtilEx {
                 var cur: STUB_ELE = stub
                 do {
                     val scope = cur.parentStub
-                    scope.walkUp(cur, Processor { next ->
+                    scope.walkUp(cur) { next ->
                         val psiElement = next.psi
-                        if (psiElement is LuaLocalFuncDef) {
+                        if (psiElement is LuaLocalFuncDefStat) {
                             continueSearch = processor.process(psiElement)
                         }
                         continueSearch
-                    })
+                    }
                     if (scope is LuaFileStub)
                         break
                     cur = scope
@@ -157,35 +152,66 @@ object LuaPsiTreeUtilEx {
      * @param current 当前搜导起点
      * @param processor 处理器
      */
-    private fun walkUpPsiLocalFunc(current: PsiElement, processor: Processor<LuaLocalFuncDef>) {
+    private fun walkUpPsiLocalFunc(current: PsiElement, processor: Processor<LuaLocalFuncDefStat>) {
         var continueSearch = true
         var curr = current
         do {
-            if (curr is LuaLocalFuncDef)
+            if (curr is LuaLocalFuncDefStat)
                 continueSearch = processor.process(curr)
 
             curr = curr.prevSibling ?: curr.parent
         } while (continueSearch && curr !is PsiFile)
     }
 
-    fun processChildren(element: PsiElement?, processor: Processor<PsiElement>) {
+    fun <T : PsiElement> processChildren(element: PsiElement?, childClass: Class<T>, processor: Processor<T>): Boolean {
         if (element is STUB_PSI) {
             val stub = element.stub
             if (stub != null) {
-                for (childrenStub in stub.childrenStubs) {
-                    if (!processor.process(childrenStub.psi))
-                        break
+                for (child in stub.childrenStubs) {
+                    if (childClass.isInstance(child)) {
+                        @Suppress("UNCHECKED_CAST")
+                        if (!processor.process(child as T)) {
+                            return false
+                        }
+                    }
                 }
-                return
+                return true
+            }
+        }
+
+        var child = element?.firstChild
+        while (child != null) {
+            if (childClass.isInstance(child)) {
+                @Suppress("UNCHECKED_CAST")
+                if (!processor.process(child as T)) {
+                    return false
+                }
+            }
+            child = child.nextSibling
+        }
+        return true
+    }
+
+    fun processChildren(element: PsiElement?, processor: Processor<PsiElement>): Boolean {
+        if (element is STUB_PSI) {
+            val stub = element.stub
+
+            if (stub != null) {
+                for (child in stub.childrenStubs) {
+                    if (!processor.process(child.psi))
+                        return false
+                }
+                return true
             }
         }
 
         var child = element?.firstChild
         while (child != null) {
             if (!processor.process(child)) {
-                break
+                return false
             }
             child = child.nextSibling
         }
+        return true
     }
 }

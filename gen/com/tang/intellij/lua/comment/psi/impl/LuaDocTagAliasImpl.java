@@ -11,7 +11,7 @@ import static com.tang.intellij.lua.comment.psi.LuaDocTypes.*;
 import com.intellij.extapi.psi.StubBasedPsiElementBase;
 import com.tang.intellij.lua.stubs.LuaDocTagAliasStub;
 import com.tang.intellij.lua.comment.psi.*;
-import com.tang.intellij.lua.ty.ITy;
+import com.tang.intellij.lua.ty.TyAlias;
 import com.intellij.psi.stubs.IStubElementType;
 import com.intellij.psi.tree.IElementType;
 
@@ -41,18 +41,30 @@ public class LuaDocTagAliasImpl extends StubBasedPsiElementBase<LuaDocTagAliasSt
 
   @Override
   @Nullable
+  public LuaDocCommentString getCommentString() {
+    return PsiTreeUtil.getChildOfType(this, LuaDocCommentString.class);
+  }
+
+  @Override
+  @NotNull
+  public List<LuaDocGenericDef> getGenericDefList() {
+    return PsiTreeUtil.getChildrenOfTypeAsList(this, LuaDocGenericDef.class);
+  }
+
+  @Override
+  @Nullable
   public LuaDocTy getTy() {
     return PsiTreeUtil.getChildOfType(this, LuaDocTy.class);
   }
 
   @Override
-  @Nullable
+  @NotNull
   public PsiElement getId() {
-    return findChildByType(ID);
+    return notNullChild(findChildByType(ID));
   }
 
   @Override
-  @Nullable
+  @NotNull
   public PsiElement getNameIdentifier() {
     return LuaDocPsiImplUtilKt.getNameIdentifier(this);
   }
@@ -64,7 +76,7 @@ public class LuaDocTagAliasImpl extends StubBasedPsiElementBase<LuaDocTagAliasSt
   }
 
   @Override
-  @Nullable
+  @NotNull
   public String getName() {
     return LuaDocPsiImplUtilKt.getName(this);
   }
@@ -76,7 +88,7 @@ public class LuaDocTagAliasImpl extends StubBasedPsiElementBase<LuaDocTagAliasSt
 
   @Override
   @NotNull
-  public ITy getType() {
+  public TyAlias getType() {
     return LuaDocPsiImplUtilKt.getType(this);
   }
 

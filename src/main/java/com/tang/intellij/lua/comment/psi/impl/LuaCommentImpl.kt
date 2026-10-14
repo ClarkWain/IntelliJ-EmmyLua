@@ -22,13 +22,11 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.tree.IElementType
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.util.Processor
 import com.tang.intellij.lua.comment.LuaCommentUtil
 import com.tang.intellij.lua.comment.psi.*
 import com.tang.intellij.lua.comment.psi.api.LuaComment
-import com.tang.intellij.lua.project.LuaSettings
-import com.tang.intellij.lua.psi.LuaCommentOwner
-import com.tang.intellij.lua.psi.LuaTypes
-import com.tang.intellij.lua.psi.LuaVisitor
+import com.tang.intellij.lua.psi.*
 import com.tang.intellij.lua.search.SearchContext
 import com.tang.intellij.lua.ty.*
 
@@ -37,23 +35,37 @@ import com.tang.intellij.lua.ty.*
  *
  */
 class LuaCommentImpl(node: ASTNode) : ASTWrapperPsiElement(node), LuaComment {
-    override fun <T : LuaDocPsiElement> findTag(t:Class<T>): T? {
-        var element: PsiElement? = firstChild
-        while (element != null) {
-            if (t.isInstance(element)) {
-                return t.cast(element)
-            }
-            element = element.nextSibling
+    override fun findGenericDefs(): Collection<LuaDocGenericDef> {
+        val typeGenericDefList = (PsiTreeUtil.getChildOfType(this, LuaDocTagClass::class.java))?.genericDefList
+                ?: PsiTreeUtil.getChildOfType(this, LuaDocTagAlias::class.java)?.genericDefList
+
+        if (typeGenericDefList != null) {
+            return typeGenericDefList
         }
-        return null
+
+        val genericDefs = mutableListOf<LuaDocGenericDef>()
+
+        findTags(LuaDocTagGenericList::class.java).forEach {
+            genericDefs.addAll(it.genericDefList)
+        }
+
+        return genericDefs
     }
 
-    override fun <T : LuaDocPsiElement> findTags(t:Class<T>): Collection<T> {
-        return PsiTreeUtil.findChildrenOfType(this, t)
+    override fun <T : LuaDocTag> findTag(tagClass: Class<T>): T? {
+        return PsiTreeUtil.getChildOfType(this, tagClass)
+    }
+
+    override fun <T : LuaDocTag> findTags(tagClass: Class<T>): Collection<T> {
+        return PsiTreeUtil.getChildrenOfTypeAsList(this, tagClass)
+    }
+
+    override fun <T : LuaDocTag> processTags(tagClass: Class<T>, process: Processor<T>): Boolean {
+        return LuaPsiTreeUtilEx.processChildren(this, tagClass, process)
     }
 
     override fun findTags(name: String): Collection<LuaDocTagDef> {
-        return PsiTreeUtil.findChildrenOfType(this, LuaDocTagDef::class.java).filter { it.tagName.text == name }
+        return PsiTreeUtil.getChildrenOfTypeAsList(this, LuaDocTagDef::class.java).filter { it.tagName.text == name }
     }
 
     override fun getTokenType(): IElementType {
@@ -75,74 +87,107 @@ class LuaCommentImpl(node: ASTNode) : ASTWrapperPsiElement(node), LuaComment {
     override val isDeprecated: Boolean
         get() = findTags("deprecated").isNotEmpty()
 
+    override val isFunctionImplementation: Boolean
+        get() = (PsiTreeUtil.getChildOfType(this, LuaDocTagOverload::class.java)
+                ?: PsiTreeUtil.getChildOfType(this, LuaDocTagParam::class.java)
+                ?: PsiTreeUtil.getChildOfType(this, LuaDocTagReturn::class.java)
+                ?: PsiTreeUtil.getChildOfType(this, LuaDocTagVararg::class.java)) != null
+
     override fun getParamDef(name: String): LuaDocTagParam? {
-        var element: PsiElement? = firstChild
-        while (element != null) {
-            if (element is LuaDocTagParam) {
-                val nameRef = element.paramNameRef
-                if (nameRef != null && nameRef.text == name)
-                    return element
+        var foundParam: LuaDocTagParam? = null
+        processTags(LuaDocTagParam::class.java) { param ->
+            val nameRef = param.paramNameRef
+            if (nameRef != null && nameRef.text == name) {
+                foundParam = param
             }
-            element = element.nextSibling
+            foundParam == null
         }
-        return null
+        return foundParam
     }
 
     override fun getFieldDef(name: String): LuaDocTagField? {
-        var element: PsiElement? = firstChild
-        while (element != null) {
-            if (element is LuaDocTagField) {
-                val nameRef = element.fieldName
-                if (nameRef != null && nameRef == name)
-                    return element
+        var foundField: LuaDocTagField? = null
+        processTags(LuaDocTagField::class.java) { field ->
+            if (field.name == name) {
+                foundField = field
             }
-            element = element.nextSibling
+            foundField != null
         }
-        return null
+        return foundField
     }
 
-    override val tagClass: LuaDocTagClass?
-        get() {
-        var element: PsiElement? = firstChild
-        while (element != null) {
-            if (element is LuaDocTagClass) {
-                return element
-            }
-            element = element.nextSibling
-        }
-        return null
-    }
+    override fun getFieldDef(context: SearchContext, indexerTy: ITy, exact: Boolean, indexerSubstitutor: ITySubstitutor?): LuaDocTagField? {
+        var narrowestField: LuaDocTagField? = null
+        var narrowestIndexTy: ITy? = null
 
-    override val tagReturn: LuaDocTagReturn?
-        get() {
-            var element: PsiElement? = firstChild
-            while (element != null) {
-                if (element is LuaDocTagReturn) {
-                    return element
+        processTags(LuaDocTagField::class.java) { field ->
+            val candidateIndexerTy = (field.guessIndexType(context) ?: field.name?.let {
+                TyPrimitiveLiteral.getTy(TyPrimitiveKind.String, it)
+            })?.let {
+                if (indexerSubstitutor != null) {
+                    it.substitute(context, indexerSubstitutor)
+                } else {
+                    it
                 }
+            }
+
+            if (candidateIndexerTy != null) {
+                if ((!exact && candidateIndexerTy.contravariantOf(context, indexerTy, TyVarianceFlags.STRICT_UNKNOWN) == true)
+                        || candidateIndexerTy == indexerTy) {
+                    if (narrowestIndexTy?.contravariantOf(context, candidateIndexerTy, TyVarianceFlags.STRICT_UNKNOWN) != false) {
+                        narrowestField = field
+                        narrowestIndexTy = candidateIndexerTy
+                    }
+                }
+            }
+
+            narrowestField == null || !exact
+        }
+
+        return narrowestField
+    }
+
+    override val tagClass: LuaDocTagClass? =
+        PsiTreeUtil.getStubChildOfType(this, LuaDocTagClass::class.java)
+
+    override val tagReturn: LuaDocTagReturn? =
+        PsiTreeUtil.getChildOfType(this, LuaDocTagReturn::class.java)
+
+    override val tagType: LuaDocTagType? =
+        PsiTreeUtil.getStubChildOfType(this, LuaDocTagType::class.java)
+
+    override val tagVararg: LuaDocTagVararg? =
+        PsiTreeUtil.getChildOfType(this, LuaDocTagVararg::class.java)
+
+    override val overloads: Array<IFunSignature>?
+        get() {
+            val list = mutableListOf<IFunSignature>()
+            val colonCall = (owner as? LuaClassMethodDefStat)?.isStatic == false
+            var element: PsiElement? = firstChild
+
+            while (element != null) {
+                if (element is LuaDocTagOverload) {
+                    val fty = element.functionTy
+
+                    if (fty != null) {
+                        list.add(TyDocFunSignature(fty, colonCall))
+                    }
+                }
+
                 element = element.nextSibling
             }
-            return null
-        }
 
-    override val tagType: LuaDocTagType?
-        get() {
-        var element: PsiElement? = firstChild
-        while (element != null) {
-            if (element is LuaDocTagType) {
-                return element
-            }
-            element = element.nextSibling
+            return if (list.size != 0) list.toTypedArray() else null
         }
-        return null
-    }
 
     override fun guessType(context: SearchContext): ITy {
         val classDef = tagClass
         if (classDef != null)
             return classDef.type
         val typeDef = tagType
-        return typeDef?.type ?: Ty.UNKNOWN
+        return if (typeDef != null) {
+            if (context.supportsMultipleResults) typeDef.getType() else typeDef.getType(context.index)
+        } else Primitives.UNKNOWN
     }
 
     override fun isOverride(): Boolean {
@@ -156,30 +201,22 @@ class LuaCommentImpl(node: ASTNode) : ASTWrapperPsiElement(node), LuaComment {
         return false
     }
 
-    override fun createSubstitutor(): ITySubstitutor? {
-        if (!LuaSettings.instance.enableGeneric)
-            return null
-
-        val list = findTags(LuaDocGenericDef::class.java)
-        val map = mutableMapOf<String, String>()
-        for (def in list) {
-            val name = def.name
-            if (name != null) {
-                val base = def.classNameRef?.text
-                if (base != null) map[name] = base
-            }
+    override fun createSubstitutor(context: SearchContext): ITySubstitutor? {
+        val list = findGenericDefs().map {
+            TyGenericParameter(it)
         }
 
-        if (map.isEmpty())
-            return null
+        return if (list.isEmpty()) {
+            null
+        } else {
+            val map = list.associateBy { it.varName }
 
-        return object : TySubstitutor() {
-            override fun substitute(clazz: ITyClass): ITy {
-                val base = map[clazz.className]
-                if (base != null) {
-                    return TyParameter(clazz.className, base)
+            object : TySubstitutor() {
+                override val name = "name substitutor"
+
+                override fun substitute(context: SearchContext, clazz: ITyClass): ITy {
+                    return map[clazz.className] ?: super.substitute(context, clazz)
                 }
-                return super.substitute(clazz)
             }
         }
     }

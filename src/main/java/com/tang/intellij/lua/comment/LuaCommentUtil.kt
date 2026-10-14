@@ -19,21 +19,45 @@ package com.tang.intellij.lua.comment
 import com.intellij.codeInsight.template.Template
 import com.intellij.codeInsight.template.TemplateManager
 import com.intellij.openapi.editor.Editor
-import com.intellij.psi.PsiElement
-import com.intellij.psi.util.PsiTreeUtil
 import com.tang.intellij.lua.comment.psi.LuaDocPsiElement
 import com.tang.intellij.lua.comment.psi.api.LuaComment
-import com.tang.intellij.lua.psi.LuaCommentOwner
+import com.tang.intellij.lua.psi.*
 
 /**
  *
  * Created by TangZX on 2016/11/24.
  */
 object LuaCommentUtil {
-
     fun findOwner(element: LuaDocPsiElement): LuaCommentOwner? {
         val comment = findContainer(element)
-        return if (comment.parent is LuaCommentOwner) comment.parent as LuaCommentOwner else null
+        val parent = comment.parent as? LuaCommentOwner
+
+        val closure = when (parent) {
+            is LuaLocalDefStat -> {
+                if (parent.localDefList.size == 1) {
+                    parent.exprList?.expressionList?.firstOrNull() as? LuaClosureExpr
+                } else {
+                    null
+                }
+            }
+            is LuaAssignStat -> {
+                if (parent.varExprList.expressionList.size == 1) {
+                    parent.valueExprList?.expressionList?.firstOrNull() as? LuaClosureExpr
+                } else {
+                    null
+                }
+            }
+            is LuaTableField -> {
+                return parent.valueExpr as? LuaClosureExpr
+            }
+            else -> parent
+        }
+
+        if (closure != null && comment.isFunctionImplementation) {
+            return closure
+        }
+
+        return parent
     }
 
     fun findContainer(psi: LuaDocPsiElement): LuaComment {
@@ -47,7 +71,40 @@ object LuaCommentUtil {
     }
 
     fun findComment(element: LuaCommentOwner): LuaComment? {
-        return PsiTreeUtil.getChildOfType(element, LuaComment::class.java)
+        val firstChild = element.firstChild // Left bound comment
+
+        if (firstChild is LuaComment) {
+            return firstChild
+        }
+
+        val lastChild = element.lastChild // Right bound comment
+
+        if (lastChild is LuaComment) {
+            return lastChild
+        }
+
+        if (element is LuaClosureExpr) {
+            val parent = element.parent
+
+            if (parent is LuaTableField) {
+                // If the closure is being assigned to table field, use the field's comment
+                return parent.comment
+            }
+
+            val grandParent = element.parent.parent
+            val assignmentComment = when (grandParent) {
+                is LuaLocalDefStat -> if (grandParent.localDefList.size == 1) grandParent.comment else null
+                is LuaAssignStat -> if (grandParent.varExprList.expressionList.size == 1) grandParent.comment else null
+                else -> null
+            }
+
+            if (assignmentComment?.isFunctionImplementation == true) {
+                // If the closure is a value of a (single value) assignment statement, use that comment.
+                return assignmentComment
+            }
+        }
+
+        return null
     }
 
     fun insertTemplate(commentOwner: LuaCommentOwner, editor: Editor, action:(TemplateManager, Template) -> Unit) {
@@ -73,13 +130,5 @@ object LuaCommentUtil {
         }
 
         templateManager.startTemplate(editor, template)
-    }
-
-    fun findComment(psi: PsiElement): LuaComment? {
-        return PsiTreeUtil.getParentOfType(psi, LuaComment::class.java)
-    }
-
-    fun isComment(psi: PsiElement): Boolean {
-        return findComment(psi) != null
     }
 }

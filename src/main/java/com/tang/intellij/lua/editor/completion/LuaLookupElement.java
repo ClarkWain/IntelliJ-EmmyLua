@@ -25,6 +25,7 @@ import com.intellij.codeInsight.lookup.LookupElementPresentation;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.text.StringUtil;
 import com.tang.intellij.lua.lang.LuaIcons;
+import com.tang.intellij.lua.psi.LuaPsiElement;
 import com.tang.intellij.lua.psi.search.LuaShortNamesManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -36,15 +37,15 @@ import java.util.Collection;
  * LuaLookupElement
  * Created by TangZX on 2016/12/16.
  */
-public class LuaLookupElement extends LookupElement implements Comparable<LookupElement> {
+public abstract class LuaLookupElement extends LookupElement implements Comparable<LookupElement> {
     private boolean itemTextUnderlined;
 
     public static void fillTypes(Project project, Collection<LookupElement> results) {
-        LuaShortNamesManager.Companion.getInstance(project).processClassNames(project, key -> {
+        LuaShortNamesManager.Companion.getInstance(project).processAllClasses(project, key -> {
             results.add(LookupElementBuilder.create(key).withIcon(LuaIcons.CLASS));
             return true;
         });
-        LuaShortNamesManager.Companion.getInstance(project).processAllAlias(project, key -> {
+        LuaShortNamesManager.Companion.getInstance(project).processAllAliases(project, key -> {
            results.add(LookupElementBuilder.create(key).withIcon(LuaIcons.Alias));
             return true;
         });
@@ -176,9 +177,6 @@ public class LuaLookupElement extends LookupElement implements Comparable<Lookup
         return getItemText().hashCode();
     }
 
-    //bug fix: https://github.com/EmmyLua/IntelliJ-EmmyLua/issues/373
     @Override
-    public boolean isValid() {
-        return true;
-    }
+    public abstract @NotNull LuaPsiElement getObject();
 }

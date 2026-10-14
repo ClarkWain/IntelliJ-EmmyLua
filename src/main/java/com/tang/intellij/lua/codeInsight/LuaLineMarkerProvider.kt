@@ -16,15 +16,15 @@
 
 package com.tang.intellij.lua.codeInsight
 
-import com.intellij.codeInsight.daemon.AbstractLineMarkerProvider
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzerSettings
 import com.intellij.codeInsight.daemon.LineMarkerInfo
-import com.intellij.codeInsight.daemon.createLineMarkerInfo
-import com.intellij.codeInsight.daemon.impl.LineMarkersPass
+import com.intellij.codeInsight.daemon.LineMarkerProvider
 import com.intellij.codeInsight.navigation.NavigationGutterIconBuilder
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.editor.colors.CodeInsightColors
 import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.editor.markup.GutterIconRenderer
+import com.intellij.openapi.editor.markup.SeparatorPlacement
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
@@ -37,72 +37,79 @@ import com.tang.intellij.lua.lang.LuaIcons
 import com.tang.intellij.lua.psi.*
 import com.tang.intellij.lua.psi.search.LuaClassInheritorsSearch
 import com.tang.intellij.lua.psi.search.LuaOverridingMethodsSearch
-import com.tang.intellij.lua.psi.search.LuaShortNamesManager
 import com.tang.intellij.lua.search.SearchContext
+import com.tang.intellij.lua.stubs.index.LuaClassMemberIndex
 import com.tang.intellij.lua.ty.TyClass
+import com.tang.intellij.lua.ty.guessParentClass
 
 /**
  * line marker
  * Created by tangzx on 2016/12/11.
  */
-class LuaLineMarkerProvider : AbstractLineMarkerProvider() {
+class LuaLineMarkerProvider : LineMarkerProvider {
 
     private val daemonSettings = DaemonCodeAnalyzerSettings.getInstance()
     private val colorsManager = EditorColorsManager.getInstance()
 
     private fun collectNavigationMarkers(element: PsiElement, result: MutableCollection<in LineMarkerInfo<*>>) {
         if (element is LuaClassMethodName) {
-            val methodDef = PsiTreeUtil.getParentOfType(element, LuaClassMethod::class.java)!!
+            val methodDef = PsiTreeUtil.getParentOfType(element, LuaTypeMethod::class.java)!!
+            val methodName = methodDef.name
             val project = methodDef.project
             val context = SearchContext.get(project)
-            val type = methodDef.guessClassType(context)
+            val type = methodDef.guessParentClass(context)
 
             //OverridingMethod
             val classMethodNameId = element.id
-            if (type != null && classMethodNameId != null) {
-                val methodName = methodDef.name!!
-                var superType = type.getSuperClass(context)
+            if (type != null && methodName != null && classMethodNameId != null) {
+                var superType = type.getSuperType(context)
 
                 while (superType != null && superType is TyClass) {
                     ProgressManager.checkCanceled()
-                    val superTypeName = superType.className
-                    val superMethod = LuaShortNamesManager.getInstance(project).findMethod(superTypeName, methodName, context)
+                    val superMethod = LuaClassMemberIndex.findMethod(context, superType, methodName)
                     if (superMethod != null) {
                         val builder = NavigationGutterIconBuilder.create(AllIcons.Gutter.OverridingMethod)
                                 .setTargets(superMethod)
-                                .setTooltipText("Overrides function in $superTypeName")
+                                .setTooltipText("Overrides function in ${superType.className}")
                         result.add(builder.createLineMarkerInfo(classMethodNameId))
                         break
                     }
-                    superType = superType.getSuperClass(context)
+                    superType = superType.getSuperType(context)
                 }
             }
 
             // OverridenMethod
             val search = LuaOverridingMethodsSearch.search(methodDef)
             if (search.findFirst() != null && classMethodNameId != null) {
-                result.add(createLineMarkerInfo(
-                    classMethodNameId,
-                    classMethodNameId.textRange,
-                    AllIcons.Gutter.OverridenMethod,
-                    null,
-                    object : LuaLineMarkerNavigator<PsiElement, LuaClassMethod>() {
+                result.add(LineMarkerInfo(
+                        classMethodNameId,
+                        classMethodNameId.textRange,
+                        AllIcons.Gutter.OverridenMethod,
+                        null,
+                        object : LuaLineMarkerNavigator<PsiElement, LuaTypeMethod<*>>() {
 
-                        override fun getTitle(elt: PsiElement)
-                                = "Choose Overriding Method of ${methodDef.name}"
+                            override fun getTitle(elt: PsiElement)
+                                    = "Choose Overriding Method of ${methodDef.name}"
 
-                        override fun search(elt: PsiElement)
-                                = LuaOverridingMethodsSearch.search(methodDef)
-                    },
-                    GutterIconRenderer.Alignment.CENTER,
-                    { "Choose Overriding Method" }
-                ))
+                            override fun search(elt: PsiElement)
+                                    = LuaOverridingMethodsSearch.search(methodDef)
+                        },
+                        GutterIconRenderer.Alignment.CENTER))
             }
 
             //line separator
             if (daemonSettings.SHOW_METHOD_SEPARATORS) {
+                //todo : module file method
                 val anchor = PsiTreeUtil.firstChild(methodDef)
-                result.add(LineMarkersPass.createMethodSeparatorLineMarker(anchor, colorsManager))
+                val lineSeparator = LineMarkerInfo(anchor,
+                        anchor.textRange,
+                        null,
+                        null,
+                        null,
+                        GutterIconRenderer.Alignment.RIGHT)
+                lineSeparator.separatorColor = colorsManager.globalScheme.getColor(CodeInsightColors.METHOD_SEPARATORS_COLOR)
+                lineSeparator.separatorPlacement = SeparatorPlacement.TOP
+                result.add(lineSeparator)
             }
         } else if (element is LuaDocTagClass) {
             val classType = element.type
@@ -110,39 +117,33 @@ class LuaLineMarkerProvider : AbstractLineMarkerProvider() {
             val query = LuaClassInheritorsSearch.search(GlobalSearchScope.allScope(project), project, classType.className)
             if (query.findFirst() != null) {
                 val id = element.id
-                result.add(createLineMarkerInfo(
-                    id,
-                    id.textRange,
-                    AllIcons.Gutter.OverridenMethod,
-                    { element.name },
-                    object : LuaLineMarkerNavigator<PsiElement, LuaDocTagClass>() {
-                        override fun getTitle(elt: PsiElement)
-                                = "Choose Subclass of ${element.name}"
+                result.add(LineMarkerInfo(id,
+                        id.textRange,
+                        AllIcons.Gutter.OverridenMethod,
+                        { element.name },
+                        object : LuaLineMarkerNavigator<PsiElement, LuaDocTagClass>() {
+                            override fun getTitle(elt: PsiElement)
+                                    = "Choose Subclass of ${element.name}"
 
-                        override fun search(elt: PsiElement): Query<LuaDocTagClass> {
-                            return LuaClassInheritorsSearch.search(GlobalSearchScope.allScope(project), project, element.name)
-                        }
-                    },
-                    GutterIconRenderer.Alignment.CENTER,
-                    { "" }
-                ))
+                            override fun search(elt: PsiElement): Query<LuaDocTagClass> {
+                                return LuaClassInheritorsSearch.search(GlobalSearchScope.allScope(project), project, element.name)
+                            }
+                        },
+                        GutterIconRenderer.Alignment.CENTER))
             }
 
             // class 标记
             val id = element.id
             val startOffset = id.textOffset
-            val classIcon = createLineMarkerInfo(
-                id,
-                TextRange(startOffset, startOffset),
-                LuaIcons.CLASS,
-                null,
-                null,
-                GutterIconRenderer.Alignment.CENTER,
-                { "Class ${classType.className}" }
-            )
+            val classIcon = LineMarkerInfo(id,
+                    TextRange(startOffset, startOffset),
+                    LuaIcons.CLASS,
+                    null,
+                    null,
+                    GutterIconRenderer.Alignment.CENTER)
             result.add(classIcon)
         } else if (element is LuaCallExpr) {
-            val expr = element.expr
+            val expr = element.expression
             val reference = expr.reference
             if (reference != null) {
                 val resolve = reference.resolve()
@@ -153,15 +154,12 @@ class LuaLineMarkerProvider : AbstractLineMarkerProvider() {
                         val bodyOwner = PsiTreeUtil.getParentOfType(cur, LuaFuncBodyOwner::class.java)
                         if (bodyOwner === resolve) {
                             val anchor = PsiTreeUtil.firstChild(element)
-                            result.add(createLineMarkerInfo(
-                                anchor,
-                                anchor.textRange,
-                                AllIcons.Gutter.RecursiveMethod,
-                                FunctionUtil.constant("Recursive call"),
-                                null,
-                                GutterIconRenderer.Alignment.CENTER,
-                                { "Recursive call" }
-                            ))
+                            result.add(LineMarkerInfo<PsiElement>(anchor,
+                                    anchor.textRange,
+                                    AllIcons.Gutter.RecursiveMethod,
+                                    FunctionUtil.constant("Recursive call"),
+                                    null,
+                                    GutterIconRenderer.Alignment.CENTER))
                             break
                         }
                         cur = bodyOwner
@@ -174,15 +172,11 @@ class LuaLineMarkerProvider : AbstractLineMarkerProvider() {
                 for (psiElement in exprList.children) {
                     if (psiElement is LuaCallExpr) {
                         val returnKeyWord = element.firstChild
-                        result.add(createLineMarkerInfo(
-                            returnKeyWord,
-                            returnKeyWord.textRange,
-                            LuaIcons.LineMarker.TailCall,
-                            FunctionUtil.constant("Tail call"),
-                            null,
-                            GutterIconRenderer.Alignment.CENTER,
-                            { "Tail call" }
-                        ))
+                        result.add(LineMarkerInfo(returnKeyWord,
+                                returnKeyWord.textRange,
+                                LuaIcons.LineMarker.TailCall,
+                                FunctionUtil.constant("Tail call"), null,
+                                GutterIconRenderer.Alignment.CENTER))
                         break
                     }
                 }
@@ -194,10 +188,10 @@ class LuaLineMarkerProvider : AbstractLineMarkerProvider() {
         return null
     }
 
-    override fun collectSlowLineMarkersExt(list: List<PsiElement>, collection: MutableCollection<in LineMarkerInfo<*>>) {
-        for (element in list) {
+    override fun collectSlowLineMarkers(elements: MutableList<out PsiElement>, result: MutableCollection<in LineMarkerInfo<*>>) {
+        for (element in elements) {
             ProgressManager.checkCanceled()
-            collectNavigationMarkers(element, collection)
+            collectNavigationMarkers(element, result)
         }
     }
 }

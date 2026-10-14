@@ -42,15 +42,15 @@ public class LuaDocTableFieldImpl extends StubBasedPsiElementBase<LuaDocTableFie
   }
 
   @Override
-  @Nullable
-  public LuaDocTy getTy() {
-    return PsiTreeUtil.getChildOfType(this, LuaDocTy.class);
+  @NotNull
+  public List<LuaDocTy> getTyList() {
+    return PsiTreeUtil.getChildrenOfTypeAsList(this, LuaDocTy.class);
   }
 
   @Override
-  @NotNull
+  @Nullable
   public PsiElement getId() {
-    return notNullChild(findChildByType(ID));
+    return findChildByType(ID);
   }
 
   @Override
@@ -66,18 +66,13 @@ public class LuaDocTableFieldImpl extends StubBasedPsiElementBase<LuaDocTableFie
   }
 
   @Override
-  public int getWorth() {
-    return LuaDocPsiImplUtilKt.getWorth(this);
-  }
-
-  @Override
   @NotNull
   public PsiElement setName(@NotNull String newName) {
     return LuaDocPsiImplUtilKt.setName(this, newName);
   }
 
   @Override
-  @NotNull
+  @Nullable
   public String getName() {
     return LuaDocPsiImplUtilKt.getName(this);
   }
@@ -89,6 +84,24 @@ public class LuaDocTableFieldImpl extends StubBasedPsiElementBase<LuaDocTableFie
   }
 
   @Override
+  @Nullable
+  public LuaDocTy getIndexType() {
+    return LuaDocPsiImplUtilKt.getIndexType(this);
+  }
+
+  @Override
+  @Nullable
+  public LuaDocTy getValueType() {
+    return LuaDocPsiImplUtilKt.getValueType(this);
+  }
+
+  @Override
+  @Nullable
+  public ITy guessIndexType(@NotNull SearchContext context) {
+    return LuaDocPsiImplUtilKt.guessIndexType(this, context);
+  }
+
+  @Override
   @NotNull
   public ITy guessType(@NotNull SearchContext context) {
     return LuaDocPsiImplUtilKt.guessType(this, context);
@@ -97,6 +110,17 @@ public class LuaDocTableFieldImpl extends StubBasedPsiElementBase<LuaDocTableFie
   @Override
   public boolean isDeprecated() {
     return LuaDocPsiImplUtilKt.isDeprecated(this);
+  }
+
+  @Override
+  public boolean isExplicitlyTyped() {
+    return LuaDocPsiImplUtilKt.isExplicitlyTyped(this);
+  }
+
+  @Override
+  @Nullable
+  public PsiElement getLbrack() {
+    return findChildByType(LBRACK);
   }
 
 }

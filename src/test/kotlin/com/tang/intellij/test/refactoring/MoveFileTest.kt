@@ -17,10 +17,15 @@
 package com.tang.intellij.test.refactoring
 
 import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.psi.PsiElement
 import com.intellij.refactoring.MultiFileTestCase
 import com.intellij.refactoring.move.moveFilesOrDirectories.MoveFilesOrDirectoriesProcessor
+import org.junit.internal.runners.JUnit38ClassRunner
+import org.junit.runner.RunWith
 
+@RunWith(JUnit38ClassRunner::class) // TODO: Remove. See: https://github.com/gradle/gradle/issues/18486
 class MoveFileTest : MultiFileTestCase() {
     override fun getTestRoot() = "/refactoring/"
 
@@ -35,11 +40,15 @@ class MoveFileTest : MultiFileTestCase() {
             val file = myPsiManager.findFile(child!!)!!
 
             val child1 = rootDir.findChild(targetDirName)
-            assertNotNull("File $targetDirName not found", child1)
-            val targetDirectory = myPsiManager.findDirectory(child1!!)
+            assertNotNull("Directory $targetDirName not found", child1)
 
-            MoveFilesOrDirectoriesProcessor(myProject, arrayOf<PsiElement>(file), targetDirectory!!,
-                    false, false, null, null).run()
+            val targetDirectory = myPsiManager.findDirectory(child1!!)
+            assertNotNull("Failed to obtain directory reference to $child1", targetDirectory)
+
+            ProgressManager.getInstance().runProcess(Runnable {
+                MoveFilesOrDirectoriesProcessor(myProject, arrayOf<PsiElement>(file), targetDirectory!!,
+                        false, false, null, null).run()
+            }, EmptyProgressIndicator())
 
             FileDocumentManager.getInstance().saveAllDocuments()
         }

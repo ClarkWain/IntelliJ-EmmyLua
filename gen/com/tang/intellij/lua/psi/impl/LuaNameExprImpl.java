@@ -14,12 +14,11 @@ import com.intellij.psi.PsiReference;
 import com.tang.intellij.lua.stubs.LuaNameExprStub;
 import com.intellij.psi.stubs.IStubElementType;
 import com.intellij.psi.tree.IElementType;
-import com.tang.intellij.lua.stubs.LuaExprStub;
 
 public class LuaNameExprImpl extends LuaNameExprMixin implements LuaNameExpr {
 
-  public LuaNameExprImpl(@NotNull LuaNameExprStub stub, @NotNull IStubElementType<?, ?> nodeType) {
-    super(stub, nodeType);
+  public LuaNameExprImpl(@NotNull LuaNameExprStub stub, @NotNull IStubElementType<?, ?> type) {
+    super(stub, type);
   }
 
   public LuaNameExprImpl(@NotNull ASTNode node) {
@@ -34,6 +33,7 @@ public class LuaNameExprImpl extends LuaNameExprMixin implements LuaNameExpr {
     visitor.visitNameExpr(this);
   }
 
+  @Override
   public void accept(@NotNull PsiElementVisitor visitor) {
     if (visitor instanceof LuaVisitor) accept((LuaVisitor)visitor);
     else super.accept(visitor);
@@ -78,6 +78,17 @@ public class LuaNameExprImpl extends LuaNameExprMixin implements LuaNameExpr {
   @Override
   public boolean isDeprecated() {
     return LuaPsiImplUtilKt.isDeprecated(this);
+  }
+
+  @Override
+  public boolean isExplicitlyTyped() {
+    return LuaPsiImplUtilKt.isExplicitlyTyped(this);
+  }
+
+  @Override
+  @NotNull
+  public String toString() {
+    return LuaPsiImplUtilKt.toString(this);
   }
 
 }

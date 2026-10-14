@@ -3,7 +3,7 @@ package com.tang.intellij.lua.comment.lexer;
 import com.intellij.lexer.FlexLexer;
 import com.intellij.psi.tree.IElementType;
 import com.tang.intellij.lua.comment.psi.LuaDocTypes;
-import java.util.Stack;
+
 %%
 
 %class _LuaDocLexer
@@ -26,25 +26,41 @@ import java.util.Stack;
 %{ // User code
     private int _typeLevel = 0;
     private boolean _typeReq = false;
-    private Stack<Integer> _stack = new Stack<>();
+    private int _nextState;
+
     public _LuaDocLexer() {
         this((java.io.Reader) null);
     }
 
-    private void pushState(int state) {
-        _stack.push(zzLexicalState);
-        yybegin(state);
-    }
-
-    private void popState() {
-        var state = _stack.pop();
-        yybegin(state);
+    private void beginType(int nextState) {
+        yybegin(xTYPE);
+        _typeLevel = 0;
+        _typeReq = true;
+        _nextState = nextState;
     }
 
     private void beginType() {
-        yybegin(xTYPE_REF);
-        _typeLevel = 0;
-        _typeReq = true;
+        beginType(xBODY);
+    }
+
+    private int nBrackets = -1;
+
+    private int checkAhead(char c) {
+        int length = this.zzBuffer.length();
+
+        for (int pos = this.zzMarkedPos; pos < length; pos++) {
+            char charAhead = zzBuffer.charAt(pos);
+
+            if (charAhead == c) {
+                return pos;
+            }
+
+            if (charAhead != ' ' && charAhead != '\t' && charAhead != '\f') {
+                return -1;
+            }
+        }
+
+        return -1;
     }
 %}
 
@@ -54,55 +70,96 @@ import java.util.Stack;
 
 EOL="\r"|"\n"|"\r\n"
 LINE_WS=[\ \t\f]
-WHITE_SPACE=({LINE_WS}|{EOL})+
-STRING=[^\r\n\t\f]*
-ID=[:jletter:] ([:jletterdigit:]|\.)*
-AT=@
+STRING=[^\r\n]*
+ID=[:jletter:] ([:jletterdigit:])*
+PROPERTY=[:jletter:] ([:jletterdigit:]|\.)*
 //三个-以上
-DOC_DASHES = --+
+DOC_DASHES=--+
+BLOCK_BEGIN=--\[=*\[---+
+BLOCK_END=\]=*\]
 //Strings
-DOUBLE_QUOTED_STRING=\"([^\\\"]|\\\S|\\[\r\n])*\"?  //\"([^\\\"\r\n]|\\[^\r\n])*\"?
-SINGLE_QUOTED_STRING='([^\\\']|\\\S|\\[\r\n])*'?    //'([^\\'\r\n]|\\[^\r\n])*'?
+DOUBLE_QUOTED_STRING=\"([^\\\"]|\\\S|\\[\r\n])*\"
+SINGLE_QUOTED_STRING='([^\\\']|\\\S|\\[\r\n])*'
+// Snippets
+SNIPPET_CONTENT=([^\\`]|\\\S|\\[\r\n])+
+//Number
+n=[0-9]+
+h=[0-9a-fA-F]+
+exp=[Ee]([+-]?{n})?
+ppp=[Pp][+-]{n}
+// 123ULL/123LL
+// 0x123FFULL/0x123FFLL
+JIT_EXT_NUMBER=(0[xX]{h}|{n})U?LL
+HEX_NUMBER=0[xX]({h}|{h}[.]{h})({exp}|{ppp})?
+NUMBER={JIT_EXT_NUMBER}|{HEX_NUMBER}|({n}|{n}[.]{n}){exp}?|[.]{n}|{n}[.]
+// Boolean
+BOOLEAN=true|false
 
+%state xBODY
 %state xTAG
 %state xTAG_WITH_ID
 %state xTAG_NAME
 %state xCOMMENT_STRING
 %state xPARAM
-%state xTYPE_REF
+%state xPARAM_SUFFIX
+%state xTYPE
 %state xCLASS
+%state xCLASS_PARAMS
+%state xCLASS_PARAM_LIST
 %state xCLASS_EXTEND
 %state xFIELD
 %state xFIELD_ID
+%state xFIELD_VALUE
 %state xGENERIC
 %state xALIAS
+%state xALIAS_PARAMS
+%state xALIAS_PARAM_LIST
 %state xSUPPRESS
 %state xDOUBLE_QUOTED_STRING
 %state xSINGLE_QUOTED_STRING
+%state xBACKTICK_QUOTED_STRING
 
 %%
 
 <YYINITIAL> {
-    {EOL}                      { yybegin(YYINITIAL); return com.intellij.psi.TokenType.WHITE_SPACE;}
+    {BLOCK_BEGIN}              { nBrackets = yylength() - 7; yybegin(xBODY); return BLOCK_BEGIN; }
+    .                          { yybegin(xBODY); yypushback(yylength()); }
+}
+
+<xBODY> {
+    {EOL}                      { yybegin(xBODY); return EOL;}
     {LINE_WS}+                 { return com.intellij.psi.TokenType.WHITE_SPACE; }
-    {DOC_DASHES}               { return DASHES; }
+    {BLOCK_END}                {
+        if (yylength() - 2 == nBrackets) {
+            nBrackets = -1;
+            return BLOCK_END;
+        }
+    }
+    {DOC_DASHES}               { if (nBrackets == -1) return DASHES; }
     "@"                        { yybegin(xTAG_NAME); return AT; }
     .                          { yybegin(xCOMMENT_STRING); yypushback(yylength()); }
 }
 
-<xTAG, xTAG_WITH_ID, xTAG_NAME, xPARAM, xTYPE_REF, xCLASS, xCLASS_EXTEND, xFIELD, xFIELD_ID, xCOMMENT_STRING, xGENERIC, xALIAS, xSUPPRESS> {
-    {EOL}                      { yybegin(YYINITIAL);return com.intellij.psi.TokenType.WHITE_SPACE;}
+<xTAG, xTAG_WITH_ID, xTAG_NAME, xPARAM, xPARAM_SUFFIX, xTYPE, xCLASS, xCLASS_PARAM_LIST, xCLASS_EXTEND, xFIELD, xFIELD_ID, xFIELD_VALUE, xCOMMENT_STRING, xGENERIC, xALIAS, xALIAS_PARAM_LIST, xSUPPRESS> {
     {LINE_WS}+                 { return com.intellij.psi.TokenType.WHITE_SPACE; }
+    {BLOCK_END}                {
+        if (yylength() - 2 == nBrackets) {
+            nBrackets = -1;
+            return BLOCK_END;
+        }
+    }
 }
 
 <xTAG_NAME> {
     "field"                    { yybegin(xFIELD); return TAG_NAME_FIELD; }
     "param"                    { yybegin(xPARAM); return TAG_NAME_PARAM; }
-    "vararg"                   { yybegin(xPARAM); return TAG_NAME_VARARG; }
+    "vararg"                   { beginType(); return TAG_NAME_VARARG; }
     "class"                    { yybegin(xCLASS); return TAG_NAME_CLASS; }
+    "shape"                    { yybegin(xCLASS); return TAG_NAME_SHAPE; }
     "module"                   { yybegin(xCLASS); return TAG_NAME_MODULE; }
     "return"                   { beginType(); return TAG_NAME_RETURN; }
     "type"                     { beginType(); return TAG_NAME_TYPE;}
+    "not"                      { beginType(); return TAG_NAME_NOT;}
     "overload"                 { beginType(); return TAG_NAME_OVERLOAD; }
     "private"                  { return TAG_NAME_PRIVATE; }
     "protected"                { return TAG_NAME_PROTECTED; }
@@ -117,71 +174,176 @@ SINGLE_QUOTED_STRING='([^\\\']|\\\S|\\[\r\n])*'?    //'([^\\'\r\n]|\\[^\r\n])*'?
 }
 
 <xSUPPRESS> {
-    {ID}                       { return ID; }
+    {PROPERTY}                 { return PROPERTY; }
     ","                        { return COMMA; }
-    [^]                        { yybegin(YYINITIAL); yypushback(yylength()); }
+    [^]                        { yybegin(xBODY); yypushback(yylength()); }
 }
 
 <xALIAS> {
-    {ID}                       { beginType(); return ID; }
-    [^]                        { yybegin(YYINITIAL); yypushback(yylength()); }
+    {ID}                       { yybegin(xALIAS_PARAMS); return ID; }
+}
+
+<xALIAS_PARAMS> {
+    "<"                        { yybegin(xALIAS_PARAM_LIST); return LT; }
+    [^]                        { beginType(); yypushback(yylength()); }
+}
+
+<xALIAS_PARAM_LIST> {
+    {ID}                       { return ID; }
+    ":"                        { beginType(xALIAS_PARAM_LIST); return EXTENDS; }
+    ","                        { return COMMA; }
+    ">"                        { beginType(); return GT; }
 }
 
 <xGENERIC> {
     {ID}                       { return ID; }
-    ":"                        { return EXTENDS;}
+    ":"                        { beginType(); return EXTENDS; }
     ","                        { return COMMA; }
-    [^]                        { yybegin(YYINITIAL); yypushback(yylength()); }
+    [^]                        { yybegin(xBODY); yypushback(yylength()); }
 }
 
 <xCLASS> {
-    {ID}                       { yybegin(xCLASS_EXTEND); return ID; }
+    {ID}                       { yybegin(xCLASS_PARAMS); return ID; }
 }
+
+<xCLASS_PARAMS> {
+    "<"                        { yybegin(xCLASS_PARAM_LIST); return LT; }
+    [^]                        { yybegin(xCLASS_EXTEND); yypushback(yylength()); }
+}
+
+<xCLASS_PARAM_LIST> {
+    {ID}                       { return ID; }
+    ":"                        { beginType(xCLASS_PARAM_LIST); return EXTENDS; }
+    ","                        { return COMMA; }
+    ">"                        { yybegin(xCLASS_EXTEND); return GT; }
+}
+
 <xCLASS_EXTEND> {
-    ":"                        { beginType(); return EXTENDS;}
-    [^]                        { yybegin(xCOMMENT_STRING); yypushback(yylength()); }
+    ":"                        { beginType(); return EXTENDS; }
 }
 
 <xPARAM> {
-    {ID}                       { beginType(); return ID; }
-    "..."                      { beginType(); return ID; } //varargs
+    {ID}                       { yybegin(xPARAM_SUFFIX); return ID; }
+    "..."                      { beginType(); return ELLIPSIS; } //varargs
+}
+
+<xPARAM_SUFFIX> {
+    "?"                        { beginType(); return QUESTION_MARK; }
+    [^]                        { beginType(); yypushback(yylength()); }
 }
 
 <xFIELD> {
     "private"                  { yybegin(xFIELD_ID); return PRIVATE; }
     "protected"                { yybegin(xFIELD_ID); return PROTECTED; }
     "public"                   { yybegin(xFIELD_ID); return PUBLIC; }
+    "["                        { beginType(xFIELD_VALUE); yypushback(yylength()); }
     {ID}                       { beginType(); return ID; }
 }
 <xFIELD_ID> {
+    "["                        { beginType(xFIELD_VALUE); yypushback(yylength()); }
     {ID}                       { beginType(); return ID; }
 }
+<xFIELD_VALUE> {
+    [^]                        { beginType(); yypushback(yylength()); }
+}
 
-<xTYPE_REF> {
+<xTYPE> {
     "@"                        { yybegin(xCOMMENT_STRING); return STRING_BEGIN; }
     ","                        { _typeReq = true; return COMMA; }
     "|"                        { _typeReq = true; return OR; }
+    "?"                        { return QUESTION_MARK; }
     ":"                        { _typeReq = true; return EXTENDS;}
     "<"                        { _typeLevel++; return LT; }
-    ">"                        { _typeLevel--; _typeReq = false; return GT; }
+    ">"                        {
+        if (--_typeLevel < 0) {
+            yybegin(_nextState); yypushback(yylength());
+        } else {
+            _typeReq = false;
+            return GT;
+        }
+    }
     "("                        { _typeLevel++; return LPAREN; }
-    ")"                        { _typeLevel--; _typeReq = false; return RPAREN; }
+    ")"                        {
+        if (--_typeLevel < 0) {
+            yybegin(_nextState); yypushback(yylength());
+        } else {
+            _typeReq = false;
+            return RPAREN;
+        }
+    }
     "{"                        { _typeLevel++; return LCURLY; }
-    "}"                        { _typeLevel--; _typeReq = false; return RCURLY; }
-    "\""                       { pushState(xDOUBLE_QUOTED_STRING); yypushback(yylength()); }
-    "'"                        { pushState(xSINGLE_QUOTED_STRING); yypushback(yylength()); }
-    "[]"                       { _typeReq = false; return ARR; }
-    "fun"                      { return FUN; }
-    "vararg"                   { _typeReq = true; return VARARG; }
-    "..."|{ID}                 { if (_typeReq || _typeLevel > 0) { _typeReq = false; return ID; } else { yybegin(xCOMMENT_STRING); yypushback(yylength()); } }
+    "}"                        {
+        if (--_typeLevel < 0) {
+            yybegin(_nextState); yypushback(yylength());
+        } else {
+            _typeReq = false;
+            return RCURLY;
+        }
+    }
+    "["                        {
+        int closePos = checkAhead(']');
+        if (closePos != -1) {
+            _typeReq = false;
+            zzMarkedPos = closePos + 1;
+            return ARR;
+        } else {
+            _typeLevel++;
+            return LBRACK;
+        }
+    }
+    "]"                        {
+        if (--_typeLevel < 0) {
+            yybegin(_nextState); yypushback(yylength());
+        } else {
+            _typeReq = false;
+            return RBRACK;
+        }
+    }
+    "\""                       { yybegin(xDOUBLE_QUOTED_STRING); yypushback(yylength()); }
+    "'"                        { yybegin(xSINGLE_QUOTED_STRING); yypushback(yylength()); }
+    "`"                        { yybegin(xBACKTICK_QUOTED_STRING); return BACKTICK; }
+    {BOOLEAN}                  { return BOOLEAN_LITERAL; }
+    "-"                        { return MINUS; }
+    {NUMBER}                   { return NUMBER_LITERAL; }
+    "fun"                      {
+          if (!_typeReq && checkAhead(':') != -1) {
+              return ID;
+        } else {
+              _typeReq = false;
+              return FUN;
+        }
+    }
+    "vararg"                   {
+          if (checkAhead(':') != -1) {
+              return ID;
+        } else {
+              _typeReq = true;
+              return VARARG;
+        }
+    }
+    "..."                      { return ELLIPSIS; }
+    "table"                    { return !_typeReq && checkAhead(':') != -1 ? ID : TABLE; }
+    {ID}                       {
+        if (_typeReq || _typeLevel > 0) {
+            _typeReq = false;
+            return ID;
+        } else {
+            yybegin(_nextState); yypushback(yylength());
+        }
+    }
 }
 
 <xDOUBLE_QUOTED_STRING> {
-    {DOUBLE_QUOTED_STRING}    { popState(); return STRING_LITERAL; }
+    {DOUBLE_QUOTED_STRING}    { yybegin(xTYPE); return STRING_LITERAL; }
 }
 
 <xSINGLE_QUOTED_STRING> {
-    {SINGLE_QUOTED_STRING}    { popState(); return STRING_LITERAL; }
+    {SINGLE_QUOTED_STRING}    { yybegin(xTYPE); return STRING_LITERAL; }
+}
+
+<xBACKTICK_QUOTED_STRING> {
+    {SNIPPET_CONTENT}         { return SNIPPET; }
+    "`"                       { yybegin(xTYPE); return BACKTICK; }
 }
 
 <xTAG> {
@@ -191,13 +353,15 @@ SINGLE_QUOTED_STRING='([^\\\']|\\\S|\\[\r\n])*'?    //'([^\\'\r\n]|\\[^\r\n])*'?
     [^]                        { return com.intellij.psi.TokenType.BAD_CHARACTER; }
 }
 <xTAG_WITH_ID> {
-    "\""                       { pushState(xDOUBLE_QUOTED_STRING); yypushback(yylength()); }
-    "'"                        { pushState(xSINGLE_QUOTED_STRING); yypushback(yylength()); }
-    {ID}                       { yybegin(xCOMMENT_STRING); return ID; }
+    {PROPERTY}                 { yybegin(xCOMMENT_STRING); return PROPERTY; }
 }
 
 <xCOMMENT_STRING> {
-    {STRING}                   { yybegin(YYINITIAL); return STRING; }
+    {STRING}                   { yybegin(xBODY); return STRING; }
+}
+
+<xTAG, xTAG_WITH_ID, xTAG_NAME, xPARAM, xTYPE, xCLASS, xCLASS_EXTEND, xFIELD, xFIELD_ID, xFIELD_VALUE, xCOMMENT_STRING, xGENERIC, xALIAS, xSUPPRESS> {
+    {EOL}                      { yybegin(xBODY); return EOL; }
 }
 
 [^]                            { return com.intellij.psi.TokenType.BAD_CHARACTER; }

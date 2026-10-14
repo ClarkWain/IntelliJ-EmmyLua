@@ -8,14 +8,11 @@ import com.intellij.psi.PsiNameIdentifierOwner;
 import com.intellij.psi.StubBasedPsiElement;
 import com.tang.intellij.lua.stubs.LuaTableFieldStub;
 import com.intellij.navigation.ItemPresentation;
-import com.tang.intellij.lua.comment.psi.api.LuaComment;
+import com.tang.intellij.lua.comment.psi.LuaDocTy;
 import com.tang.intellij.lua.search.SearchContext;
 import com.tang.intellij.lua.ty.ITy;
 
-public interface LuaTableField extends LuaClassField, PsiNameIdentifierOwner, LuaCommentOwner, StubBasedPsiElement<LuaTableFieldStub> {
-
-  @NotNull
-  List<LuaExpr> getExprList();
+public interface LuaTableField extends LuaTypeField, PsiNameIdentifierOwner, LuaCommentOwner, StubBasedPsiElement<LuaTableFieldStub> {
 
   @Nullable
   PsiElement getId();
@@ -31,27 +28,33 @@ public interface LuaTableField extends LuaClassField, PsiNameIdentifierOwner, Lu
 
   int getTextOffset();
 
-  @Nullable
-  String getFieldName();
-
   @NotNull
   ItemPresentation getPresentation();
+
+  @Nullable
+  ITy guessIndexType(@NotNull SearchContext context);
 
   @NotNull
   ITy guessParentType(@NotNull SearchContext context);
 
+  @Nullable
+  LuaDocTy getIndexType();
+
   @NotNull
   Visibility getVisibility();
 
-  int getWorth();
-
   boolean isDeprecated();
 
-  @Nullable
-  LuaComment getComment();
+  boolean isExplicitlyTyped();
 
   @Nullable
-  LuaExpr getIdExpr();
+  LuaExpression<?> getIdExpr();
+
+  @Nullable
+  LuaExpression<?> getValueExpr();
+
+  @NotNull
+  List<LuaExpression<?>> getExpressionList();
 
   @Nullable
   PsiElement getLbrack();

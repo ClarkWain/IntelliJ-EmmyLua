@@ -30,13 +30,13 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.TokenType
 import com.intellij.psi.util.PsiTreeUtil
 import com.tang.intellij.lua.project.LuaSettings
-import com.tang.intellij.lua.psi.LuaExpr
+import com.tang.intellij.lua.psi.LuaExpression
 import com.tang.intellij.lua.psi.LuaParamInfo
 import com.tang.intellij.lua.psi.LuaTypes
 
 abstract class ArgsInsertHandler : InsertHandler<LookupElement> {
 
-    protected abstract fun getParams(): Array<LuaParamInfo>
+    protected abstract val params: Array<out LuaParamInfo>
 
     protected open val isVarargs = false
 
@@ -95,14 +95,13 @@ abstract class ArgsInsertHandler : InsertHandler<LookupElement> {
 
     protected open fun appendSignature(insertionContext: InsertionContext, editor: Editor, element: PsiElement?) {
         if (autoInsertParameters) {
-            val paramNameDefList = getParams()
             val manager = TemplateManager.getInstance(insertionContext.project)
-            val template = createTemplate(manager, paramNameDefList)
+            val template = createTemplate(manager, params)
             editor.caretModel.moveToOffset(insertionContext.selectionEndOffset)
             manager.startTemplate(editor, template)
         } else {
             editor.document.insertString(insertionContext.selectionEndOffset, "()")
-            if (getParams().isEmpty() && !isVarargs) {
+            if (params.isEmpty() && !isVarargs) {
                 editor.caretModel.moveToOffset(insertionContext.selectionEndOffset)
             } else {
                 editor.caretModel.moveToOffset(insertionContext.selectionEndOffset - 1)
@@ -111,30 +110,30 @@ abstract class ArgsInsertHandler : InsertHandler<LookupElement> {
         }
     }
 
-    private fun findWarpExpr(file: PsiFile, offset: Int): LuaExpr? {
-        var expr = PsiTreeUtil.findElementOfClassAtOffset(file, offset, LuaExpr::class.java, true)
+    private fun findWarpExpr(file: PsiFile, offset: Int): LuaExpression<*>? {
+        var expr = PsiTreeUtil.findElementOfClassAtOffset(file, offset, LuaExpression::class.java, true)
         while (expr != null) {
             val parent = expr.parent
-            if (parent is LuaExpr && parent.node.startOffset == offset) {
+            if (parent is LuaExpression<*> && parent.node.startOffset == offset) {
                 expr = parent
             } else break
         }
         return expr
     }
 
-    protected open fun createTemplate(manager: TemplateManager, paramNameDefList: Array<LuaParamInfo>): Template {
+    protected open fun createTemplate(manager: TemplateManager, paramDefList: Array<out LuaParamInfo>): Template {
         val template = manager.createTemplate("", "")
         template.addTextSegment("(")
 
         var isFirst = true
 
-        for (i in paramNameDefList.indices) {
+        for (i in paramDefList.indices) {
             if (mask and (1 shl i) == 0) continue
 
-            val paramNameDef = paramNameDefList[i]
+            val paramDef = paramDefList[i]
             if (!isFirst)
                 template.addTextSegment(", ")
-            template.addVariable(paramNameDef.name, TextExpression(paramNameDef.name), TextExpression(paramNameDef.name), true)
+            template.addVariable(paramDef.name, TextExpression(paramDef.name), TextExpression(paramDef.name), true)
             isFirst = false
         }
         template.addTextSegment(")")

@@ -9,6 +9,7 @@ import com.intellij.psi.PsiElementVisitor;
 import com.intellij.psi.util.PsiTreeUtil;
 import static com.tang.intellij.lua.comment.psi.LuaDocTypes.*;
 import com.tang.intellij.lua.comment.psi.*;
+import com.tang.intellij.lua.psi.LuaParamInfo;
 import com.tang.intellij.lua.ty.ITy;
 
 public class LuaDocFunctionTyImpl extends LuaDocTyImpl implements LuaDocFunctionTy {
@@ -29,9 +30,15 @@ public class LuaDocFunctionTyImpl extends LuaDocTyImpl implements LuaDocFunction
   }
 
   @Override
-  @NotNull
-  public List<LuaDocFunctionParam> getFunctionParamList() {
-    return PsiTreeUtil.getChildrenOfTypeAsList(this, LuaDocFunctionParam.class);
+  @Nullable
+  public LuaDocFunctionParams getFunctionParams() {
+    return PsiTreeUtil.getChildOfType(this, LuaDocFunctionParams.class);
+  }
+
+  @Override
+  @Nullable
+  public LuaDocFunctionReturnType getFunctionReturnType() {
+    return PsiTreeUtil.getChildOfType(this, LuaDocFunctionReturnType.class);
   }
 
   @Override
@@ -41,25 +48,25 @@ public class LuaDocFunctionTyImpl extends LuaDocTyImpl implements LuaDocFunction
   }
 
   @Override
-  @Nullable
-  public LuaDocTypeList getTypeList() {
-    return PsiTreeUtil.getChildOfType(this, LuaDocTypeList.class);
-  }
-
-  @Override
-  @Nullable
-  public LuaDocVarargParam getVarargParam() {
-    return PsiTreeUtil.getChildOfType(this, LuaDocVarargParam.class);
-  }
-
-  @Override
   @NotNull
   public ITy getType() {
     return LuaDocPsiImplUtilKt.getType(this);
   }
 
   @Override
-  @NotNull
+  @Nullable
+  public LuaParamInfo[] getParams() {
+    return LuaDocPsiImplUtilKt.getParams(this);
+  }
+
+  @Override
+  @Nullable
+  public ITy getVarargParam() {
+    return LuaDocPsiImplUtilKt.getVarargParam(this);
+  }
+
+  @Override
+  @Nullable
   public ITy getReturnType() {
     return LuaDocPsiImplUtilKt.getReturnType(this);
   }

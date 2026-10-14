@@ -1,48 +1,28 @@
-/*
- * Copyright (c) 2017. tangzx(love.tangzx@qq.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.tang.intellij.lua.editor
 
-import com.intellij.navigation.GotoClassContributor
+import com.intellij.navigation.ChooseByNameContributorEx
 import com.intellij.navigation.NavigationItem
-import com.intellij.openapi.project.Project
-import com.tang.intellij.lua.search.SearchContext
+import com.intellij.psi.search.GlobalSearchScope
+import com.intellij.util.Processor
+import com.intellij.util.containers.ContainerUtil
+import com.intellij.util.indexing.FindSymbolParameters
+import com.intellij.util.indexing.IdFilter
 import com.tang.intellij.lua.stubs.index.LuaClassIndex
 
-/**
- * Goto Class
- * Created by TangZX on 2016/12/12.
- */
-class LuaClassNavigationContributor : GotoClassContributor {
-    override fun getQualifiedName(navigationItem: NavigationItem): String? = null
-
-    override fun getQualifiedNameSeparator(): String? {
-        return "."
+class LuaClassNavigationContributor : ChooseByNameContributorEx {
+    override fun processNames(processor: Processor<in String>,
+                              scope: GlobalSearchScope,
+                              filter: IdFilter?) {
+        ContainerUtil.process(LuaClassIndex.instance.getAllKeys(scope.project), processor)
     }
 
-    override fun getNames(project: Project, b: Boolean): Array<String> {
-        val allClasses = LuaClassIndex.instance.getAllKeys(project)
-        return allClasses.toTypedArray()
-    }
-
-    override fun getItemsByName(s: String, s1: String, project: Project, b: Boolean): Array<NavigationItem> {
-        val classDef = LuaClassIndex.find(s, SearchContext.get(project))
-        return if (classDef == null)
-            emptyArray()
-        else
-            arrayOf(classDef)
+    override fun processElementsWithName(name: String,
+                                         processor: Processor<in NavigationItem>,
+                                         parameters: FindSymbolParameters) {
+        val project = parameters.project
+        val searchScope = parameters.searchScope
+        LuaClassIndex.instance.processAllKeys(project) {
+            ContainerUtil.process(LuaClassIndex.instance.get(it, project, searchScope), processor)
+        }
     }
 }

@@ -22,13 +22,12 @@ import com.intellij.lang.Language
 import com.intellij.patterns.PlatformPatterns.psiElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.ProcessingContext
-import com.intellij.util.Processor
 import com.tang.intellij.lua.comment.LuaCommentUtil
 import com.tang.intellij.lua.comment.psi.*
 import com.tang.intellij.lua.comment.psi.api.LuaComment
 import com.tang.intellij.lua.lang.LuaIcons
 import com.tang.intellij.lua.lang.LuaParserDefinition
-import com.tang.intellij.lua.psi.LuaClassField
+import com.tang.intellij.lua.psi.LuaTypeField
 import com.tang.intellij.lua.psi.LuaFuncBodyOwner
 import com.tang.intellij.lua.psi.search.LuaShortNamesManager
 import com.tang.intellij.lua.search.SearchContext
@@ -67,10 +66,10 @@ class LuaDocCompletionContributor : CompletionContributor() {
 
                 if (element is LuaDocPsiElement) {
                     val owner = LuaCommentUtil.findOwner(element)
-                    if (owner is LuaFuncBodyOwner) {
+                    if (owner is LuaFuncBodyOwner<*>) {
                         val body = owner.funcBody
                         if (body != null) {
-                            val parDefList = body.paramNameDefList
+                            val parDefList = body.paramDefList
                             for (def in parDefList) {
                                 completionResultSet.addElement(
                                         LookupElementBuilder.create(def.text)
@@ -86,15 +85,17 @@ class LuaDocCompletionContributor : CompletionContributor() {
         extend(CompletionType.BASIC, SHOW_CLASS, object : CompletionProvider<CompletionParameters>() {
             override fun addCompletions(completionParameters: CompletionParameters, processingContext: ProcessingContext, completionResultSet: CompletionResultSet) {
                 val project = completionParameters.position.project
-                LuaShortNamesManager.getInstance(project).processClassNames(project, Processor{
+
+                LuaShortNamesManager.getInstance(project).processAllClasses(project) {
                     completionResultSet.addElement(LookupElementBuilder.create(it).withIcon(LuaIcons.CLASS))
                     true
-                })
+                }
 
-                LuaShortNamesManager.getInstance(project).processAllAlias(project, Processor { key ->
+                LuaShortNamesManager.getInstance(project).processAllAliases(project) { key ->
                     completionResultSet.addElement(LookupElementBuilder.create(key).withIcon(LuaIcons.Alias))
                     true
-                })
+                }
+
                 completionResultSet.stopHere()
             }
         })
@@ -116,9 +117,11 @@ class LuaDocCompletionContributor : CompletionContributor() {
                     val classType = classDef.type
                     val ctx = SearchContext.get(classDef.project)
                     classType.processMembers(ctx) { _, member ->
-                        if (member is LuaClassField)
-                            completionResultSet.addElement(LookupElementBuilder.create(member.name!!).withIcon(LuaIcons.CLASS_FIELD))
-                        Unit
+                        val name = member.name
+                        if (name != null && member is LuaTypeField) {
+                            completionResultSet.addElement(LookupElementBuilder.create(name).withIcon(LuaIcons.CLASS_FIELD))
+                        }
+                        true
                     }
                 }
             }
@@ -130,11 +133,14 @@ class LuaDocCompletionContributor : CompletionContributor() {
                 val position = completionParameters.position
                 val seeRefTag = PsiTreeUtil.getParentOfType(position, LuaDocTagSee::class.java)
                 if (seeRefTag != null) {
-                    val classType = seeRefTag.classNameRef?.resolveType() as? ITyClass
                     val ctx = SearchContext.get(seeRefTag.project)
+                    val classType = seeRefTag.typeRef?.resolveType(ctx) as? ITyClass
                     classType?.processMembers(ctx) { _, member ->
-                        completionResultSet.addElement(LookupElementBuilder.create(member.name!!).withIcon(LuaIcons.CLASS_FIELD))
-                        Unit
+                        val name = member.name
+                        if (name != null) {
+                            completionResultSet.addElement(LookupElementBuilder.create(name).withIcon(LuaIcons.CLASS_FIELD))
+                        }
+                        true
                     }
                 }
                 completionResultSet.stopHere()
@@ -145,8 +151,7 @@ class LuaDocCompletionContributor : CompletionContributor() {
             override fun addCompletions(completionParameters: CompletionParameters, processingContext: ProcessingContext, completionResultSet: CompletionResultSet) {
                 Language.getRegisteredLanguages().forEach {
                     val fileType = it.associatedFileType
-                    val id = "\"${it.id}\""
-                    var lookupElement = LookupElementBuilder.create(id)
+                    var lookupElement = LookupElementBuilder.create(it.id)
                     if (fileType != null)
                         lookupElement = lookupElement.withIcon(fileType.icon)
                     completionResultSet.addElement(lookupElement)
@@ -169,7 +174,7 @@ class LuaDocCompletionContributor : CompletionContributor() {
                 psiElement(LuaDocTypes.TAG_NAME_PARAM))
 
         // 在 extends 之后提示类型
-        private val SHOW_CLASS = psiElement().withParent(LuaDocClassNameRef::class.java)
+        private val SHOW_CLASS = psiElement().withParent(LuaDocTypeRef::class.java)
 
         // 在 @field 之后提示 public / protected
         private val SHOW_ACCESS_MODIFIER = psiElement().afterLeaf(

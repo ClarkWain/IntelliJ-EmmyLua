@@ -8,22 +8,24 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementVisitor;
 import com.intellij.psi.util.PsiTreeUtil;
 import static com.tang.intellij.lua.psi.LuaTypes.*;
-import com.tang.intellij.lua.stubs.LuaPlaceholderStub;
+import com.intellij.extapi.psi.StubBasedPsiElementBase;
+import com.tang.intellij.lua.stubs.LuaReturnStatStub;
 import com.tang.intellij.lua.psi.*;
+import com.tang.intellij.lua.ty.ITy;
 import com.intellij.psi.stubs.IStubElementType;
 import com.intellij.psi.tree.IElementType;
 
-public class LuaReturnStatImpl extends LuaStatMixin<LuaPlaceholderStub> implements LuaReturnStat {
+public class LuaReturnStatImpl extends StubBasedPsiElementBase<LuaReturnStatStub> implements LuaReturnStat {
 
-  public LuaReturnStatImpl(@NotNull LuaPlaceholderStub stub, @NotNull IStubElementType<?, ?> nodeType) {
-    super(stub, nodeType);
+  public LuaReturnStatImpl(@NotNull LuaReturnStatStub stub, @NotNull IStubElementType<?, ?> type) {
+    super(stub, type);
   }
 
   public LuaReturnStatImpl(@NotNull ASTNode node) {
     super(node);
   }
 
-  public LuaReturnStatImpl(@NotNull LuaPlaceholderStub stub, @NotNull IElementType type, @NotNull ASTNode node) {
+  public LuaReturnStatImpl(LuaReturnStatStub stub, IElementType type, ASTNode node) {
     super(stub, type, node);
   }
 
@@ -31,6 +33,7 @@ public class LuaReturnStatImpl extends LuaStatMixin<LuaPlaceholderStub> implemen
     visitor.visitReturnStat(this);
   }
 
+  @Override
   public void accept(@NotNull PsiElementVisitor visitor) {
     if (visitor instanceof LuaVisitor) accept((LuaVisitor)visitor);
     else super.accept(visitor);
@@ -40,6 +43,12 @@ public class LuaReturnStatImpl extends LuaStatMixin<LuaPlaceholderStub> implemen
   @Nullable
   public LuaExprList getExprList() {
     return PsiTreeUtil.getStubChildOfType(this, LuaExprList.class);
+  }
+
+  @Override
+  @Nullable
+  public ITy getType() {
+    return LuaPsiImplUtilKt.getType(this);
   }
 
 }

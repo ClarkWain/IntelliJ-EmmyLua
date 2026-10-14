@@ -5,14 +5,17 @@ import java.util.List;
 import org.jetbrains.annotations.*;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiNameIdentifierOwner;
+import com.tang.intellij.lua.psi.LuaClass;
+import com.tang.intellij.lua.psi.LuaScopedType;
+import com.tang.intellij.lua.ty.TyGenericParameter;
 
-public interface LuaDocGenericDef extends PsiNameIdentifierOwner, LuaDocPsiElement {
-
-  @Nullable
-  LuaDocClassNameRef getClassNameRef();
+public interface LuaDocGenericDef extends PsiNameIdentifierOwner, LuaDocPsiElement, LuaClass, LuaScopedType {
 
   @NotNull
   PsiElement getId();
+
+  @NotNull
+  TyGenericParameter getType();
 
   @Nullable
   PsiElement getNameIdentifier();
@@ -24,5 +27,8 @@ public interface LuaDocGenericDef extends PsiNameIdentifierOwner, LuaDocPsiEleme
   String getName();
 
   int getTextOffset();
+
+  @Nullable
+  LuaDocTy getSuperClass();
 
 }

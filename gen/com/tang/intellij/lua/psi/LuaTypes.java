@@ -11,24 +11,24 @@ public interface LuaTypes {
 
   IElementType ARGS = LuaParserDefinitionKt.createType("ARGS");
   IElementType ASSIGN_STAT = LuaParserDefinitionKt.createType("ASSIGN_STAT");
-  IElementType ATTRIBUTE = LuaParserDefinitionKt.createType("ATTRIBUTE");
   IElementType BINARY_EXPR = LuaParserDefinitionKt.createType("BINARY_EXPR");
   IElementType BINARY_OP = LuaParserDefinitionKt.createType("BINARY_OP");
   IElementType BLOCK = LuaParserDefinitionKt.createType("BLOCK");
   IElementType BREAK_STAT = LuaParserDefinitionKt.createType("BREAK_STAT");
   IElementType CALL_EXPR = LuaParserDefinitionKt.createType("CALL_EXPR");
-  IElementType CLASS_METHOD_DEF = LuaParserDefinitionKt.createType("CLASS_METHOD_DEF");
+  IElementType CLASS_METHOD_DEF_STAT = LuaParserDefinitionKt.createType("CLASS_METHOD_DEF_STAT");
   IElementType CLASS_METHOD_NAME = LuaParserDefinitionKt.createType("CLASS_METHOD_NAME");
+  IElementType CLOSE_ATTRIBUTE = LuaParserDefinitionKt.createType("CLOSE_ATTRIBUTE");
   IElementType CLOSURE_EXPR = LuaParserDefinitionKt.createType("CLOSURE_EXPR");
+  IElementType CONST_ATTRIBUTE = LuaParserDefinitionKt.createType("CONST_ATTRIBUTE");
   IElementType DO_STAT = LuaParserDefinitionKt.createType("DO_STAT");
   IElementType EMPTY_STAT = LuaParserDefinitionKt.createType("EMPTY_STAT");
-  IElementType EXPR = LuaParserDefinitionKt.createType("EXPR");
   IElementType EXPR_LIST = LuaParserDefinitionKt.createType("EXPR_LIST");
   IElementType EXPR_STAT = LuaParserDefinitionKt.createType("EXPR_STAT");
   IElementType FOR_A_STAT = LuaParserDefinitionKt.createType("FOR_A_STAT");
   IElementType FOR_B_STAT = LuaParserDefinitionKt.createType("FOR_B_STAT");
   IElementType FUNC_BODY = LuaParserDefinitionKt.createType("FUNC_BODY");
-  IElementType FUNC_DEF = LuaParserDefinitionKt.createType("FUNC_DEF");
+  IElementType FUNC_DEF_STAT = LuaParserDefinitionKt.createType("FUNC_DEF_STAT");
   IElementType GOTO_STAT = LuaParserDefinitionKt.createType("GOTO_STAT");
   IElementType IF_STAT = LuaParserDefinitionKt.createType("IF_STAT");
   IElementType INDEX_EXPR = LuaParserDefinitionKt.createType("INDEX_EXPR");
@@ -36,11 +36,10 @@ public interface LuaTypes {
   IElementType LIST_ARGS = LuaParserDefinitionKt.createType("LIST_ARGS");
   IElementType LITERAL_EXPR = LuaParserDefinitionKt.createType("LITERAL_EXPR");
   IElementType LOCAL_DEF = LuaParserDefinitionKt.createType("LOCAL_DEF");
-  IElementType LOCAL_FUNC_DEF = LuaParserDefinitionKt.createType("LOCAL_FUNC_DEF");
-  IElementType NAME_DEF = LuaParserDefinitionKt.createType("NAME_DEF");
+  IElementType LOCAL_DEF_STAT = LuaParserDefinitionKt.createType("LOCAL_DEF_STAT");
+  IElementType LOCAL_FUNC_DEF_STAT = LuaParserDefinitionKt.createType("LOCAL_FUNC_DEF_STAT");
   IElementType NAME_EXPR = LuaParserDefinitionKt.createType("NAME_EXPR");
-  IElementType NAME_LIST = LuaParserDefinitionKt.createType("NAME_LIST");
-  IElementType PARAM_NAME_DEF = LuaParserDefinitionKt.createType("PARAM_NAME_DEF");
+  IElementType PARAM_DEF = LuaParserDefinitionKt.createType("PARAM_DEF");
   IElementType PAREN_EXPR = LuaParserDefinitionKt.createType("PAREN_EXPR");
   IElementType REPEAT_STAT = LuaParserDefinitionKt.createType("REPEAT_STAT");
   IElementType RETURN_STAT = LuaParserDefinitionKt.createType("RETURN_STAT");
@@ -68,6 +67,7 @@ public interface LuaTypes {
   IElementType CONCAT = LuaParserDefinitionKt.createToken("..");
   IElementType DIV = LuaParserDefinitionKt.createToken("/");
   IElementType DO = LuaParserDefinitionKt.createToken("do");
+  IElementType DOC_BLOCK_COMMENT = LuaParserDefinitionKt.createToken("DOC_BLOCK_COMMENT");
   IElementType DOC_COMMENT = LuaParserDefinitionKt.createToken("DOC_COMMENT");
   IElementType DOT = LuaParserDefinitionKt.createToken(".");
   IElementType DOUBLE_COLON = LuaParserDefinitionKt.createToken("::");
@@ -126,9 +126,6 @@ public interface LuaTypes {
       if (type == ASSIGN_STAT) {
         return new LuaAssignStatImpl(node);
       }
-      else if (type == ATTRIBUTE) {
-        return new LuaAttributeImpl(node);
-      }
       else if (type == BINARY_EXPR) {
         return new LuaBinaryExprImpl(node);
       }
@@ -144,23 +141,26 @@ public interface LuaTypes {
       else if (type == CALL_EXPR) {
         return new LuaCallExprImpl(node);
       }
-      else if (type == CLASS_METHOD_DEF) {
-        return new LuaClassMethodDefImpl(node);
+      else if (type == CLASS_METHOD_DEF_STAT) {
+        return new LuaClassMethodDefStatImpl(node);
       }
       else if (type == CLASS_METHOD_NAME) {
         return new LuaClassMethodNameImpl(node);
       }
+      else if (type == CLOSE_ATTRIBUTE) {
+        return new LuaCloseAttributeImpl(node);
+      }
       else if (type == CLOSURE_EXPR) {
         return new LuaClosureExprImpl(node);
+      }
+      else if (type == CONST_ATTRIBUTE) {
+        return new LuaConstAttributeImpl(node);
       }
       else if (type == DO_STAT) {
         return new LuaDoStatImpl(node);
       }
       else if (type == EMPTY_STAT) {
         return new LuaEmptyStatImpl(node);
-      }
-      else if (type == EXPR) {
-        return new LuaExprImpl(node);
       }
       else if (type == EXPR_LIST) {
         return new LuaExprListImpl(node);
@@ -177,8 +177,8 @@ public interface LuaTypes {
       else if (type == FUNC_BODY) {
         return new LuaFuncBodyImpl(node);
       }
-      else if (type == FUNC_DEF) {
-        return new LuaFuncDefImpl(node);
+      else if (type == FUNC_DEF_STAT) {
+        return new LuaFuncDefStatImpl(node);
       }
       else if (type == GOTO_STAT) {
         return new LuaGotoStatImpl(node);
@@ -201,20 +201,17 @@ public interface LuaTypes {
       else if (type == LOCAL_DEF) {
         return new LuaLocalDefImpl(node);
       }
-      else if (type == LOCAL_FUNC_DEF) {
-        return new LuaLocalFuncDefImpl(node);
+      else if (type == LOCAL_DEF_STAT) {
+        return new LuaLocalDefStatImpl(node);
       }
-      else if (type == NAME_DEF) {
-        return new LuaNameDefImpl(node);
+      else if (type == LOCAL_FUNC_DEF_STAT) {
+        return new LuaLocalFuncDefStatImpl(node);
       }
       else if (type == NAME_EXPR) {
         return new LuaNameExprImpl(node);
       }
-      else if (type == NAME_LIST) {
-        return new LuaNameListImpl(node);
-      }
-      else if (type == PARAM_NAME_DEF) {
-        return new LuaParamNameDefImpl(node);
+      else if (type == PARAM_DEF) {
+        return new LuaParamDefImpl(node);
       }
       else if (type == PAREN_EXPR) {
         return new LuaParenExprImpl(node);

@@ -4,8 +4,8 @@ on:
   push:
     branches:
       - '*'
-#  pull_request:
-#    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
 
 permissions:
   contents: read
@@ -15,9 +15,14 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    strategy:
+      fail-fast: false
+      matrix:
+        ide: ['2025.2', '2026.2']
+
     env:
       CI: true
-      CI_BUILD_VERSION: 1.4.0.${{ github.run_number }}
+      CI_BUILD_VERSION: 1.5.0-luanalysis.${{ github.run_number }}
 
     steps:
       - name: Checkout
@@ -35,14 +40,14 @@ jobs:
           java-version: '25'
           distribution: 'temurin'
 
-      - name: Build 2026.2
+      - name: Test and build ${{ matrix.ide }}
         run: |
           export JAVA_HOME="$JAVA_HOME_21_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
-          ./gradlew buildPlugin
+          xvfb-run --auto-servernum ./gradlew test buildPlugin -DIDEA_VER=${{ matrix.ide }} --no-configuration-cache
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4.6.2
         with:
-          name: v${{ env.CI_BUILD_VERSION }}
+          name: v${{ env.CI_BUILD_VERSION }}-IDEA${{ matrix.ide }}
           path: build/distributions/*.zip

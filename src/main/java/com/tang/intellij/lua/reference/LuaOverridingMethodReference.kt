@@ -19,16 +19,16 @@ package com.tang.intellij.lua.reference
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiReferenceBase
-import com.tang.intellij.lua.psi.LuaClassMethod
+import com.tang.intellij.lua.psi.LuaTypeMethod
 
-class LuaOverridingMethodReference(val methodDef: LuaClassMethod, val target: LuaClassMethod)
-    : PsiReferenceBase<LuaClassMethod>(methodDef) {
+class LuaOverridingMethodReference(val classMethod: LuaTypeMethod<*>, val target: LuaTypeMethod<*>)
+    : PsiReferenceBase<LuaTypeMethod<*>>(classMethod) {
     override fun getVariants(): Array<Any> {
         return arrayOf()
     }
 
     override fun getRangeInElement(): TextRange {
-        val id = methodDef.nameIdentifier!!
+        val id = classMethod.nameIdentifier!!
         val start = id.node.startOffset - myElement.node.startOffset
         return TextRange(start, start + id.textLength)
     }

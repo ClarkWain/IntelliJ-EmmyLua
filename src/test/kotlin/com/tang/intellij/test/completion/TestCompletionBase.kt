@@ -39,12 +39,17 @@ abstract class TestCompletionBase : LuaTestBase() {
     }
 
     fun doTest(action: (lookupStrings:List<String>) -> Unit) {
+        val originalShowWords = LuaSettings.instance.isShowWordsInFile
         LuaSettings.instance.isShowWordsInFile = false
-        FileDocumentManager.getInstance().saveAllDocuments()
-        myFixture.completeBasic()
-        val strings = myFixture.lookupElementStrings
-        assertNotNull(strings)
-        action(strings!!)
+        try {
+            FileDocumentManager.getInstance().saveAllDocuments()
+            myFixture.completeBasic()
+            val strings = myFixture.lookupElementStrings
+            assertNotNull(strings)
+            action(strings!!)
+        } finally {
+            LuaSettings.instance.isShowWordsInFile = originalShowWords
+        }
     }
 
     fun doTest(code: String, action: (lookupStrings:List<String>) -> Unit) {

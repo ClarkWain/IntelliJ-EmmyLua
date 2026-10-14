@@ -62,7 +62,7 @@ class LuaTypedHandler : TypedHandlerDelegate() {
                 PsiDocumentManager.getInstance(project).commitDocument(editor.document)
                 val pos = editor.caretModel.offset - 1
                 val element = file.findElementAt(pos)
-                if (element != null && element.parent is LuaFuncBodyOwner) {
+                if (element != null && element.parent is LuaFuncBodyOwner<*>) {
                     val templateManager = TemplateManager.getInstance(project)
                     val template = templateManager.createTemplate("", "", "(\$PARAMETERS\$) \$END\$ end")
                     template.addVariable("PARAMETERS", MacroCallNode(SuggestLuaParametersMacro(SuggestLuaParametersMacro.Position.TypedHandler)), TextExpression(""), false)

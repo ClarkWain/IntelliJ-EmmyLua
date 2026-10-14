@@ -25,6 +25,7 @@ import com.intellij.util.io.StringRef
 import com.tang.intellij.lua.Constants
 import com.tang.intellij.lua.psi.*
 import com.tang.intellij.lua.psi.impl.LuaNameExprImpl
+import com.tang.intellij.lua.search.SearchContext
 import com.tang.intellij.lua.stubs.index.LuaClassMemberIndex
 import com.tang.intellij.lua.stubs.index.StubKeys
 import com.tang.intellij.lua.ty.ITy
@@ -44,8 +45,12 @@ class LuaNameExprType : LuaStubElementType<LuaNameExprStub, LuaNameExpr>("NAME_E
     override fun createStub(luaNameExpr: LuaNameExpr, stubElement: StubElement<*>): LuaNameExprStub {
         val psiFile = luaNameExpr.containingFile
         val name = luaNameExpr.name
-        val module = if (psiFile is LuaPsiFile) psiFile.moduleName ?: Constants.WORD_G else Constants.WORD_G
-        val isGlobal = resolveLocal(luaNameExpr) == null
+        val module = SearchContext.withDumb(luaNameExpr.project, null) {
+            (psiFile as? LuaPsiFile)?.getModuleName(it)
+        } ?: Constants.WORD_G
+        val isGlobal = SearchContext.withDumb(luaNameExpr.project, null) {
+            resolveLocal(it, luaNameExpr)
+        } == null
 
         val stat = luaNameExpr.assignStat
         val docTy = stat?.comment?.ty
@@ -55,7 +60,6 @@ class LuaNameExprType : LuaStubElementType<LuaNameExprStub, LuaNameExpr>("NAME_E
                 stat != null,
                 isGlobal,
                 docTy,
-                luaNameExpr.worth,
                 stubElement,
                 this)
     }
@@ -66,7 +70,6 @@ class LuaNameExprType : LuaStubElementType<LuaNameExprStub, LuaNameExpr>("NAME_E
         stream.writeBoolean(stub.isName)
         stream.writeBoolean(stub.isGlobal)
         stream.writeTyNullable(stub.docTy)
-        stream.writeInt(stub.worth)
     }
 
     override fun deserialize(stream: StubInputStream, stubElement: StubElement<*>): LuaNameExprStub {
@@ -75,29 +78,27 @@ class LuaNameExprType : LuaStubElementType<LuaNameExprStub, LuaNameExpr>("NAME_E
         val isName = stream.readBoolean()
         val isGlobal = stream.readBoolean()
         val docTy = stream.readTyNullable()
-        val worth = stream.readInt()
         return LuaNameExprStubImpl(StringRef.toString(nameRef),
                 StringRef.toString(moduleRef),
                 isGlobal,
                 isName,
                 docTy,
-                worth,
                 stubElement,
                 this)
     }
 
     override fun indexStub(luaNameStub: LuaNameExprStub, indexSink: IndexSink) {
-        if (luaNameStub.isGlobal &&luaNameStub.isName) {
+        if (luaNameStub.isGlobal && luaNameStub.isName) {
             val module = luaNameStub.module
 
-            LuaClassMemberIndex.indexStub(indexSink, module, luaNameStub.name)
+            LuaClassMemberIndex.indexMemberStub(indexSink, module, luaNameStub.name)
 
             indexSink.occurrence(StubKeys.SHORT_NAME, luaNameStub.name)
         }
     }
 }
 
-interface LuaNameExprStub : LuaExprStub<LuaNameExpr>, LuaDocTyStub, WorthElement {
+interface LuaNameExprStub : StubElement<LuaNameExpr>, LuaDocTyStub {
     val name: String
     val module: String
     val isName: Boolean
@@ -110,7 +111,6 @@ class LuaNameExprStubImpl(
         override val isName: Boolean,
         override val isGlobal: Boolean,
         override val docTy: ITy?,
-        override val worth: Int,
         parent: StubElement<*>,
         elementType: LuaStubElementType<*, *>
 ) : LuaStubBase<LuaNameExpr>(parent, elementType), LuaNameExprStub

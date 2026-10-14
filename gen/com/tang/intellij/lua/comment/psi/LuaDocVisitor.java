@@ -4,8 +4,11 @@ package com.tang.intellij.lua.comment.psi;
 import org.jetbrains.annotations.*;
 import com.intellij.psi.PsiElementVisitor;
 import com.intellij.psi.PsiNameIdentifierOwner;
-import com.tang.intellij.lua.psi.LuaClassField;
 import com.tang.intellij.lua.psi.LuaClass;
+import com.tang.intellij.lua.psi.LuaScopedType;
+import com.tang.intellij.lua.psi.LuaTypeField;
+import com.tang.intellij.lua.psi.LuaPsiTypeMember;
+import com.tang.intellij.lua.psi.LuaTypeScope;
 import com.tang.intellij.lua.psi.LuaTypeAlias;
 
 public class LuaDocVisitor extends PsiElementVisitor {
@@ -16,10 +19,11 @@ public class LuaDocVisitor extends PsiElementVisitor {
 
   public void visitArrTy(@NotNull LuaDocArrTy o) {
     visitTy(o);
+    // visitLuaPsiTypeMember(o);
   }
 
-  public void visitClassNameRef(@NotNull LuaDocClassNameRef o) {
-    visitPsiElement(o);
+  public void visitBooleanLiteralTy(@NotNull LuaDocBooleanLiteralTy o) {
+    visitTy(o);
   }
 
   public void visitCommentString(@NotNull LuaDocCommentString o) {
@@ -30,8 +34,17 @@ public class LuaDocVisitor extends PsiElementVisitor {
     visitPsiElement(o);
   }
 
+  public void visitFunctionParams(@NotNull LuaDocFunctionParams o) {
+    visitPsiElement(o);
+  }
+
+  public void visitFunctionReturnType(@NotNull LuaDocFunctionReturnType o) {
+    visitPsiElement(o);
+  }
+
   public void visitFunctionTy(@NotNull LuaDocFunctionTy o) {
     visitTy(o);
+    // visitLuaTypeScope(o);
   }
 
   public void visitGeneralTy(@NotNull LuaDocGeneralTy o) {
@@ -40,14 +53,25 @@ public class LuaDocVisitor extends PsiElementVisitor {
 
   public void visitGenericDef(@NotNull LuaDocGenericDef o) {
     visitPsiNameIdentifierOwner(o);
+    // visitLuaClass(o);
+    // visitLuaScopedType(o);
+  }
+
+  public void visitGenericTableIndexTy(@NotNull LuaDocGenericTableIndexTy o) {
+    visitTy(o);
+  }
+
+  public void visitGenericTableTy(@NotNull LuaDocGenericTableTy o) {
+    visitTy(o);
+    // visitLuaPsiTypeMember(o);
   }
 
   public void visitGenericTy(@NotNull LuaDocGenericTy o) {
     visitTy(o);
   }
 
-  public void visitLanId(@NotNull LuaDocLanId o) {
-    visitPsiElement(o);
+  public void visitNumberLiteralTy(@NotNull LuaDocNumberLiteralTy o) {
+    visitTy(o);
   }
 
   public void visitParTy(@NotNull LuaDocParTy o) {
@@ -58,13 +82,26 @@ public class LuaDocVisitor extends PsiElementVisitor {
     visitPsiElement(o);
   }
 
+  public void visitPrimitiveTableTy(@NotNull LuaDocPrimitiveTableTy o) {
+    visitTy(o);
+    // visitLuaPsiTypeMember(o);
+  }
+
+  public void visitReturnList(@NotNull LuaDocReturnList o) {
+    visitType(o);
+  }
+
+  public void visitSnippetTy(@NotNull LuaDocSnippetTy o) {
+    visitTy(o);
+  }
+
   public void visitStringLiteralTy(@NotNull LuaDocStringLiteralTy o) {
     visitTy(o);
   }
 
   public void visitTableField(@NotNull LuaDocTableField o) {
     visitPsiElement(o);
-    // visitLuaClassField(o);
+    // visitLuaTypeField(o);
     // visitPsiNameIdentifierOwner(o);
   }
 
@@ -86,6 +123,8 @@ public class LuaDocVisitor extends PsiElementVisitor {
     visitPsiElement(o);
     // visitPsiNameIdentifierOwner(o);
     // visitLuaClass(o);
+    // visitLuaScopedType(o);
+    // visitLuaTypeScope(o);
     // visitTag(o);
   }
 
@@ -94,7 +133,7 @@ public class LuaDocVisitor extends PsiElementVisitor {
   }
 
   public void visitTagField(@NotNull LuaDocTagField o) {
-    visitLuaClassField(o);
+    visitLuaTypeField(o);
     // visitPsiNameIdentifierOwner(o);
     // visitTag(o);
   }
@@ -104,6 +143,10 @@ public class LuaDocVisitor extends PsiElementVisitor {
   }
 
   public void visitTagLan(@NotNull LuaDocTagLan o) {
+    visitTag(o);
+  }
+
+  public void visitTagNot(@NotNull LuaDocTagNot o) {
     visitTag(o);
   }
 
@@ -143,6 +186,10 @@ public class LuaDocVisitor extends PsiElementVisitor {
     visitPsiElement(o);
   }
 
+  public void visitTypeRef(@NotNull LuaDocTypeRef o) {
+    visitPsiElement(o);
+  }
+
   public void visitUnionTy(@NotNull LuaDocUnionTy o) {
     visitTy(o);
   }
@@ -163,11 +210,11 @@ public class LuaDocVisitor extends PsiElementVisitor {
     visitPsiElement(o);
   }
 
-  public void visitLuaClassField(@NotNull LuaClassField o) {
+  public void visitLuaTypeAlias(@NotNull LuaTypeAlias o) {
     visitElement(o);
   }
 
-  public void visitLuaTypeAlias(@NotNull LuaTypeAlias o) {
+  public void visitLuaTypeField(@NotNull LuaTypeField o) {
     visitElement(o);
   }
 

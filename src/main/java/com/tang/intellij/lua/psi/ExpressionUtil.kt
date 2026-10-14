@@ -17,12 +17,14 @@
 package com.tang.intellij.lua.psi
 
 import com.intellij.psi.tree.IElementType
+import com.tang.intellij.lua.search.SearchContext
+import com.tang.intellij.lua.ty.Primitives
 
 data class ComputeResult(val kind: ComputeKind,
                          var bValue: Boolean = false,
                          var nValue: Float = 0f,
                          var sValue: String = "",
-                         var expr: LuaExpr? = null) {
+                         var expression: LuaExpression<*>? = null) {
     val string: String get() = when (kind) {
         ComputeKind.Number -> {
             val int = nValue.toInt()
@@ -41,29 +43,37 @@ enum class ComputeKind {
 class ExpressionUtil {
     companion object {
 
-        fun compute(expr: LuaExpr): ComputeResult? {
-            return when (expr) {
+        fun compute(expression: LuaExpression<*>): ComputeResult? {
+            return when (expression) {
                 is LuaLiteralExpr -> {
-                    when (expr.kind) {
-                        LuaLiteralKind.String -> ComputeResult(ComputeKind.String, false, 0f, expr.stringValue)
-                        LuaLiteralKind.Bool -> ComputeResult(ComputeKind.Bool, expr.boolValue)
-                        LuaLiteralKind.Number -> ComputeResult(ComputeKind.Number, false, expr.numberValue)
+                    when (expression.kind) {
+                        LuaLiteralKind.String -> ComputeResult(ComputeKind.String, true, 0f, expression.stringValue)
+                        LuaLiteralKind.Bool -> ComputeResult(ComputeKind.Bool, expression.boolValue)
+                        LuaLiteralKind.Number -> ComputeResult(ComputeKind.Number, true, expression.numberValue)
                         LuaLiteralKind.Nil -> ComputeResult(ComputeKind.Nil, false, 0f, "nil")
                         else -> null
                     }
                 }
                 is LuaBinaryExpr -> {
-                    val left = compute(expr.left!!) ?: return null
-                    val rExpr = expr.right ?: return null
+                    val left = compute(expression.left!!) ?: return null
+                    val rExpr = expression.right ?: return null
                     val right = compute(rExpr) ?: return null
-                    val op = expr.binaryOp
-                    return calcBinary(left, right, op.node.firstChildNode.elementType)
+                    calcBinary(left, right, expression.operationType)
                 }
                 is LuaParenExpr -> {
-                    val inner = expr.expr
+                    val inner = expression.expression
                     if (inner != null) compute(inner) else null
                 }
-                else -> return ComputeResult(ComputeKind.Other, true, 0f, "", expr)
+                else -> {
+                    val context = SearchContext.get(expression.project)
+                    val booleanTy = expression.guessType(context)?.booleanType
+
+                    if (booleanTy != null && booleanTy != Primitives.BOOLEAN) {
+                        ComputeResult(ComputeKind.Other, booleanTy == Primitives.TRUE, 0f, "", expression)
+                    } else {
+                        null
+                    }
+                }
             }
         }
 

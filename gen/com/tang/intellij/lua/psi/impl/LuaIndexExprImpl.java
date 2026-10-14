@@ -15,12 +15,11 @@ import com.tang.intellij.lua.ty.ITy;
 import com.tang.intellij.lua.stubs.LuaIndexExprStub;
 import com.intellij.psi.stubs.IStubElementType;
 import com.intellij.psi.tree.IElementType;
-import com.tang.intellij.lua.stubs.LuaExprStub;
 
 public class LuaIndexExprImpl extends LuaIndexExprMixin implements LuaIndexExpr {
 
-  public LuaIndexExprImpl(@NotNull LuaIndexExprStub stub, @NotNull IStubElementType<?, ?> nodeType) {
-    super(stub, nodeType);
+  public LuaIndexExprImpl(@NotNull LuaIndexExprStub stub, @NotNull IStubElementType<?, ?> type) {
+    super(stub, type);
   }
 
   public LuaIndexExprImpl(@NotNull ASTNode node) {
@@ -35,15 +34,46 @@ public class LuaIndexExprImpl extends LuaIndexExprMixin implements LuaIndexExpr 
     visitor.visitIndexExpr(this);
   }
 
+  @Override
   public void accept(@NotNull PsiElementVisitor visitor) {
     if (visitor instanceof LuaVisitor) accept((LuaVisitor)visitor);
     else super.accept(visitor);
   }
 
   @Override
-  @NotNull
-  public List<LuaExpr> getExprList() {
-    return PsiTreeUtil.getStubChildrenOfTypeAsList(this, LuaExpr.class);
+  @Nullable
+  public LuaCallExpr getCallExpr() {
+    return PsiTreeUtil.getStubChildOfType(this, LuaCallExpr.class);
+  }
+
+  @Override
+  @Nullable
+  public LuaIndexExpr getIndexExpr() {
+    return PsiTreeUtil.getStubChildOfType(this, LuaIndexExpr.class);
+  }
+
+  @Override
+  @Nullable
+  public LuaLiteralExpr getLiteralExpr() {
+    return PsiTreeUtil.getStubChildOfType(this, LuaLiteralExpr.class);
+  }
+
+  @Override
+  @Nullable
+  public LuaNameExpr getNameExpr() {
+    return PsiTreeUtil.getStubChildOfType(this, LuaNameExpr.class);
+  }
+
+  @Override
+  @Nullable
+  public LuaParenExpr getParenExpr() {
+    return PsiTreeUtil.getStubChildOfType(this, LuaParenExpr.class);
+  }
+
+  @Override
+  @Nullable
+  public LuaTableExpr getTableExpr() {
+    return PsiTreeUtil.getStubChildOfType(this, LuaTableExpr.class);
   }
 
   @Override
@@ -83,8 +113,20 @@ public class LuaIndexExprImpl extends LuaIndexExprMixin implements LuaIndexExpr 
 
   @Override
   @Nullable
-  public LuaLiteralExpr getIdExpr() {
+  public LuaExpression<?> getIdExpr() {
     return LuaPsiImplUtilKt.getIdExpr(this);
+  }
+
+  @Override
+  @NotNull
+  public String toString() {
+    return LuaPsiImplUtilKt.toString(this);
+  }
+
+  @Override
+  @Nullable
+  public ITy guessIndexType(@NotNull SearchContext context) {
+    return LuaPsiImplUtilKt.guessIndexType(this, context);
   }
 
   @Override
@@ -96,6 +138,17 @@ public class LuaIndexExprImpl extends LuaIndexExprMixin implements LuaIndexExpr 
   @Override
   public boolean isDeprecated() {
     return LuaPsiImplUtilKt.isDeprecated(this);
+  }
+
+  @Override
+  public boolean isExplicitlyTyped() {
+    return LuaPsiImplUtilKt.isExplicitlyTyped(this);
+  }
+
+  @Override
+  @NotNull
+  public List<LuaExpression<?>> getExpressionList() {
+    return LuaPsiImplUtilKt.getExpressionList(this);
   }
 
   @Override

@@ -26,7 +26,6 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.tree.TokenSet
 import com.intellij.util.ProcessingContext
-import com.tang.intellij.lua.comment.LuaCommentUtil
 import com.tang.intellij.lua.lang.LuaIcons
 import com.tang.intellij.lua.lang.LuaLanguage
 import com.tang.intellij.lua.project.LuaSettings
@@ -52,6 +51,8 @@ class LuaCompletionContributor : CompletionContributor() {
 
         extend(CompletionType.BASIC, LuaStringArgHistoryProvider.STRING_ARG, LuaStringArgHistoryProvider())
 
+        extend(CompletionType.BASIC, ATTRIBUTE, AttributeCompletionProvider())
+
         //提示全局函数,local变量,local函数
         extend(CompletionType.BASIC, IN_NAME_EXPR, LocalAndGlobalCompletionProvider(LocalAndGlobalCompletionProvider.ALL))
 
@@ -70,11 +71,9 @@ class LuaCompletionContributor : CompletionContributor() {
             }
         })
 
-        extend(CompletionType.BASIC, psiElement(LuaTypes.ID).withParent(LuaNameDef::class.java), SuggestLocalNameProvider())
+        extend(CompletionType.BASIC, IN_LOCAL_DEF_NAME, SuggestLocalNameProvider())
 
         extend(CompletionType.BASIC, IN_TABLE_FIELD, TableCompletionProvider())
-
-        extend(CompletionType.BASIC, ATTRIBUTE, AttributeCompletionProvider())
     }
 
     override fun fillCompletionVariants(parameters: CompletionParameters, result: CompletionResultSet) {
@@ -95,11 +94,13 @@ class LuaCompletionContributor : CompletionContributor() {
                 if (element.parent is LuaLabelStat) {
                     suggestWords = false
                     context.dummyIdentifier = ""
-                } else if (!LuaCommentUtil.isComment(element)) {
+                } else {
                     val type = element.node.elementType
-                    if (type in IGNORE_SET) {
-                        suggestWords = false
-                        context.dummyIdentifier = ""
+                    when (type) {
+                        in IGNORE_SET -> {
+                            suggestWords = false
+                            context.dummyIdentifier = ""
+                        }
                     }
                 }
             }
@@ -122,11 +123,15 @@ class LuaCompletionContributor : CompletionContributor() {
         private val IN_NAME_EXPR = psiElement(LuaTypes.ID)
                 .withParent(LuaNameExpr::class.java)
 
+        private val IN_LOCAL_DEF_NAME = psiElement(LuaTypes.ID)
+            .withParent(LuaLocalDef::class.java)
+            .andNot(psiElement().afterLeaf("<"))
+
         private val SHOW_OVERRIDE = psiElement()
                 .withParent(LuaClassMethodName::class.java)
         private val IN_CLASS_METHOD = psiElement(LuaTypes.ID)
                 .withParent(LuaNameExpr::class.java)
-                .inside(LuaClassMethodDef::class.java)
+                .inside(LuaClassMethodDefStat::class.java)
         private val SHOW_REQUIRE_PATH = psiElement(LuaTypes.STRING)
                 .withParent(
                         psiElement(LuaTypes.LITERAL_EXPR).withParent(
@@ -145,14 +150,16 @@ class LuaCompletionContributor : CompletionContributor() {
                 psiElement(LuaTypes.ID).withParent(LuaTableField::class.java)
         )
 
-        private val ATTRIBUTE = psiElement(LuaTypes.ID).withParent(LuaAttribute::class.java)
+        private val ATTRIBUTE = psiElement(LuaTypes.ID)
+            .afterLeaf("<")
+            .withParent(LuaLocalDef::class.java)
 
         private fun suggestWordsInFile(parameters: CompletionParameters) {
             val session = CompletionSession[parameters]
             val originalPosition = parameters.originalPosition
             if (originalPosition != null)
                 session.addWord(originalPosition.text)
-            
+
             val wordsScanner = LanguageFindUsages.INSTANCE.forLanguage(LuaLanguage.INSTANCE).wordsScanner
             wordsScanner?.processWords(parameters.editor.document.charsSequence) {
                 val word = it.baseText.subSequence(it.start, it.end).toString()

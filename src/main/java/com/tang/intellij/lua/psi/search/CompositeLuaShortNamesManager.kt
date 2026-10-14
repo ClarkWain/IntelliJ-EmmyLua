@@ -16,113 +16,104 @@
 
 package com.tang.intellij.lua.psi.search
 
+import com.intellij.openapi.extensions.ExtensionPointName
 import com.intellij.openapi.project.Project
 import com.intellij.util.Processor
 import com.tang.intellij.lua.psi.LuaClass
-import com.tang.intellij.lua.psi.LuaClassMember
-import com.tang.intellij.lua.psi.LuaClassMethod
+import com.tang.intellij.lua.psi.LuaPsiTypeMember
 import com.tang.intellij.lua.psi.LuaTypeAlias
 import com.tang.intellij.lua.search.SearchContext
+import com.tang.intellij.lua.stubs.index.ProcessLuaPsiClassMember
+import com.tang.intellij.lua.ty.ITy
 import com.tang.intellij.lua.ty.ITyClass
+import com.tang.intellij.lua.ty.ITySubstitutor
 
-class CompositeLuaShortNamesManager : LuaShortNamesManager() {
-    private val list: Array<LuaShortNamesManager> = LuaShortNamesManager.EP_NAME.extensions
-
-    override fun findClass(name: String, context: SearchContext): LuaClass? {
-        for (ep in list) {
-            val c = ep.findClass(name, context)
-            if (c != null)
-                return c
-        }
-        return null
-    }
-
-    override fun findMember(type: ITyClass, fieldName: String, context: SearchContext): LuaClassMember? {
-        for (manager in list) {
-            val ret = manager.findMember(type, fieldName, context)
-            if (ret != null) return ret
-        }
-        return null
-    }
-
-    override fun findMethod(
-        className: String,
-        methodName: String,
-        context: SearchContext,
-        visitSuper: Boolean
-    ): LuaClassMethod? {
-        for (manager in list) {
-            val ret = manager.findMethod(className, methodName, context, visitSuper)
-            if (ret != null) return ret
-        }
-        return null
-    }
-
-    override fun processClassNames(project: Project, processor: Processor<String>): Boolean {
-        for (ep in list) {
-            if (!ep.processClassNames(project, processor))
-                return false
-        }
-        return true
-    }
-
-    override fun processMembers(
-        className: String,
-        fieldName: String,
-        context: SearchContext,
-        processor: Processor<LuaClassMember>,
-        visitSuper: Boolean
-    ): Boolean {
-        for (manager in list) {
-            if (!manager.processMembers(className, fieldName, context, processor, visitSuper))
-                return false
-        }
-        return true
-    }
-
-    override fun processMembers(
-        type: ITyClass,
-        context: SearchContext,
-        processor: Processor<LuaClassMember>
-    ): Boolean {
-        for (manager in list) {
-            if (!manager.processMembers(type, context, processor))
-                return false
-        }
-        return true
-    }
-
-    override fun processClassesWithName(name: String, context: SearchContext, processor: Processor<LuaClass>): Boolean {
-        for (ep in list) {
-            if (!ep.processClassesWithName(name, context, processor))
-                return false
-        }
-        return true
-    }
-
-    override fun getClassMembers(clazzName: String, context: SearchContext): Collection<LuaClassMember> {
-        val collection = mutableListOf<LuaClassMember>()
-        for (manager in list) {
-            val col = manager.getClassMembers(clazzName, context)
-            collection.addAll(col)
-        }
-        return collection
-    }
-
-    override fun findAlias(name: String, context: SearchContext): LuaTypeAlias? {
-        for (manager in list) {
-            val alias = manager.findAlias(name, context)
+class CompositeLuaShortNamesManager : LuaShortNamesManager {
+    override fun findAlias(context: SearchContext, name: String): LuaTypeAlias? {
+        for (manager in EP_NAME.extensionList) {
+            val alias = manager.findAlias(context, name)
             if (alias != null)
                 return alias
         }
         return null
     }
 
-    override fun processAllAlias(project: Project, processor: Processor<String>): Boolean {
-        for (manager in list) {
-            if (!manager.processAllAlias(project, processor))
+    override fun findClass(context: SearchContext, name: String): LuaClass? {
+        for (manager in EP_NAME.extensionList) {
+            val c = manager.findClass(context, name)
+            if (c != null)
+                return c
+        }
+        return null
+    }
+
+    override fun processAllAliases(project: Project, processor: Processor<String>): Boolean {
+        for (manager in EP_NAME.extensionList) {
+            if (!manager.processAllAliases(project, processor))
                 return false
         }
         return true
+    }
+
+    override fun processAliases(context: SearchContext, name: String, processor: Processor<in LuaTypeAlias>): Boolean {
+        for (manager in EP_NAME.extensionList) {
+            if (!manager.processAliases(context, name, processor))
+                return false
+        }
+        return true
+    }
+
+    override fun processAllClasses(project: Project, processor: Processor<String>): Boolean {
+        for (manager in EP_NAME.extensionList) {
+            if (!manager.processAllClasses(project, processor))
+                return false
+        }
+        return true
+    }
+
+    override fun processClasses(context: SearchContext, name: String, processor: Processor<in LuaClass>): Boolean {
+        for (manager in EP_NAME.extensionList) {
+            if (!manager.processClasses(context, name, processor))
+                return false
+        }
+        return true
+    }
+
+    override fun getClassMembers(context: SearchContext, clazzName: String): Collection<LuaPsiTypeMember> {
+        val collection = mutableListOf<LuaPsiTypeMember>()
+        for (manager in EP_NAME.extensionList) {
+            val col = manager.getClassMembers(context, clazzName)
+            collection.addAll(col)
+        }
+        return collection
+    }
+
+    override fun processMember(context: SearchContext, type: ITyClass, fieldName: String, searchIndexers: Boolean, deep: Boolean, indexerSubstitutor: ITySubstitutor?, process: ProcessLuaPsiClassMember): Boolean {
+        for (manager in EP_NAME.extensionList) {
+            if (!manager.processMember(context, type, fieldName, searchIndexers, deep, indexerSubstitutor, process))
+                return false
+        }
+        return true
+    }
+
+    override fun processIndexer(
+            context: SearchContext,
+            type: ITyClass,
+            indexTy: ITy,
+            exact: Boolean,
+            searchMembers: Boolean,
+            deep: Boolean,
+            indexerSubstitutor: ITySubstitutor?,
+            process: ProcessLuaPsiClassMember
+    ): Boolean {
+        for (manager in EP_NAME.extensionList) {
+            if (!manager.processIndexer(context, type, indexTy, exact, searchMembers, deep, indexerSubstitutor, process))
+                return false
+        }
+        return true
+    }
+
+    companion object {
+        private val EP_NAME = ExtensionPointName.create<LuaShortNamesManager>("com.tang.intellij.lua.luaShortNamesManager")
     }
 }

@@ -26,8 +26,11 @@ import com.tang.intellij.lua.comment.psi.LuaDocTableField
 import com.tang.intellij.lua.comment.psi.impl.LuaDocTableFieldImpl
 import com.tang.intellij.lua.psi.LuaElementType
 import com.tang.intellij.lua.psi.Visibility
+import com.tang.intellij.lua.search.SearchContext
 import com.tang.intellij.lua.stubs.index.LuaClassMemberIndex
+import com.tang.intellij.lua.stubs.index.StubKeys
 import com.tang.intellij.lua.ty.ITy
+import com.tang.intellij.lua.ty.Primitives
 import com.tang.intellij.lua.ty.getDocTableTypeName
 
 class LuaDocTableFieldType : LuaStubElementType<LuaDocTableFieldStub, LuaDocTableField>("DOC_TABLE_FIELD_DEF") {
@@ -37,46 +40,104 @@ class LuaDocTableFieldType : LuaStubElementType<LuaDocTableFieldStub, LuaDocTabl
 
     override fun serialize(stub: LuaDocTableFieldStub, stream: StubOutputStream) {
         stream.writeName(stub.name)
-        stream.writeTyNullable(stub.docTy)
+        stream.writeTyNullable(stub.indexTy)
         stream.writeName(stub.parentTypeName)
+        stream.writeTyNullable(stub.valueTy)
     }
 
-    override fun deserialize(stream: StubInputStream, parent: StubElement<*>): LuaDocTableFieldStub {
-        val name = stream.readName()
-        val docTy = stream.readTyNullable()
-        val parentTypeName = stream.readName()
-        return LuaDocTableFieldStubImpl(StringRef.toString(name),
-                docTy,
-                StringRef.toString(parentTypeName),
-                parent)
+    override fun deserialize(stream: StubInputStream, stubElement: StubElement<*>): LuaDocTableFieldStub {
+        val name = StringRef.toString(stream.readName())
+        val indexType = stream.readTyNullable()
+        val parentTypeName = StringRef.toString(stream.readName())!!
+        val valueType = stream.readTyNullable()
+
+        return if (name != null) {
+            LuaDocTableFieldStubImpl(stubElement,
+                    name,
+                    parentTypeName,
+                    valueType)
+        } else {
+            LuaDocTableFieldStubImpl(stubElement,
+                    indexType!!,
+                    parentTypeName,
+                    valueType)
+        }
     }
 
     override fun createStub(tableDef: LuaDocTableField, parentStub: StubElement<*>): LuaDocTableFieldStub {
         val name = tableDef.name
-        val type = tableDef.ty?.getType()
-        val p = tableDef.parent as LuaDocTableDef
-        val pTypeName = getDocTableTypeName(p)
-        return LuaDocTableFieldStubImpl(name, type, pTypeName, parentStub)
+        val indexTy = SearchContext.withDumb(tableDef.project, Primitives.UNKNOWN) { context ->
+            tableDef.guessIndexType(context)
+        }
+        val valueTy = SearchContext.withDumb(tableDef.project, Primitives.UNKNOWN) { context ->
+            tableDef.guessType(context)
+        }
+        val parent = tableDef.parent as LuaDocTableDef
+        val parentTypeName = getDocTableTypeName(parent)
+
+        return if (name != null) {
+            LuaDocTableFieldStubImpl(parentStub,
+                    name,
+                    parentTypeName,
+                    valueTy)
+        } else {
+            LuaDocTableFieldStubImpl(parentStub,
+                    indexTy!!,
+                    parentTypeName,
+                    valueTy)
+        }
     }
 
     override fun indexStub(stub: LuaDocTableFieldStub, sink: IndexSink) {
-        LuaClassMemberIndex.indexStub(sink, stub.parentTypeName, stub.name)
+        val memberName = stub.name
+        val parentTypeName = stub.parentTypeName
+
+        if (memberName != null) {
+            LuaClassMemberIndex.indexMemberStub(sink, parentTypeName, memberName)
+            sink.occurrence(StubKeys.SHORT_NAME, memberName)
+            return
+        }
+
+        LuaClassMemberIndex.indexIndexerStub(sink, parentTypeName, stub.indexTy!!)
     }
 }
 
 interface LuaDocTableFieldStub : LuaClassMemberStub<LuaDocTableField> {
-    val name: String
+    val name: String?
+    val indexTy: ITy?
+    val valueTy: ITy?
     val parentTypeName: String
-}
 
-class LuaDocTableFieldStubImpl(
-        override val name: String,
-        override val docTy: ITy?,
-        override val parentTypeName: String,
-        parent: StubElement<*>
-) : LuaDocStubBase<LuaDocTableField>(parent, LuaElementType.DOC_TABLE_FIELD_DEF), LuaDocTableFieldStub {
+    override val docTy: ITy?
+        get() = valueTy
+
     override val visibility: Visibility
         get() = Visibility.PUBLIC
+
     override val isDeprecated: Boolean
         get() = false
+}
+
+class LuaDocTableFieldStubImpl : LuaDocStubBase<LuaDocTableField>, LuaDocTableFieldStub {
+    override val name: String?
+    override val indexTy: ITy?
+    override val valueTy: ITy?
+    override val parentTypeName: String
+    override val isExplicitlyTyped: Boolean = true
+
+    constructor(parent: StubElement<*>, name: String, parentTypeName: String, valueTy: ITy?)
+            : super(parent, LuaElementType.DOC_TABLE_FIELD_DEF) {
+        this.name = name
+        this.indexTy = null
+        this.parentTypeName = parentTypeName
+        this.valueTy = valueTy
+    }
+
+    constructor(parent: StubElement<*>, indexType: ITy?, parentTypeName: String, valueTy: ITy?)
+            : super(parent, LuaElementType.DOC_TABLE_FIELD_DEF) {
+        this.name = null
+        this.indexTy = indexType
+        this.parentTypeName = parentTypeName
+        this.valueTy = valueTy
+    }
 }

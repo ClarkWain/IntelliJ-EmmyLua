@@ -19,17 +19,18 @@ package com.tang.intellij.lua.psi.search
 import com.intellij.openapi.extensions.ExtensionPointName
 import com.intellij.psi.search.searches.ExtensibleQueryFactory
 import com.intellij.util.Query
-import com.tang.intellij.lua.psi.LuaClassMethod
+import com.intellij.util.QueryExecutor
+import com.tang.intellij.lua.psi.LuaTypeMethod
 
-class LuaOverridenMethodsSearch : ExtensibleQueryFactory<LuaClassMethod, LuaOverridenMethodsSearch.SearchParameters>(
-    ExtensionPointName.create("com.tang.intellij.lua.luaOverridenMethodsSearch")
-) {
-    class SearchParameters(val method: LuaClassMethod, val deep: Boolean)
+class LuaOverridenMethodsSearch : ExtensibleQueryFactory<LuaTypeMethod<*>, LuaOverridenMethodsSearch.SearchParameters>(EP_NAME) {
+    class SearchParameters(val method: LuaTypeMethod<*>)
 
     companion object {
+        private val EP_NAME = ExtensionPointName.create<QueryExecutor<LuaTypeMethod<*>, SearchParameters>>("com.tang.intellij.lua.luaOverridenMethodsSearch")
+
         private val INSTANCE = LuaOverridenMethodsSearch()
 
-        fun search(methodDef: LuaClassMethod, deep: Boolean = true): Query<LuaClassMethod> =
-                INSTANCE.createUniqueResultsQuery(SearchParameters(methodDef, deep))
+        fun search(classMethod: LuaTypeMethod<*>, deep: Boolean = true): Query<LuaTypeMethod<*>> =
+                INSTANCE.createUniqueResultsQuery(SearchParameters(classMethod))
     }
 }

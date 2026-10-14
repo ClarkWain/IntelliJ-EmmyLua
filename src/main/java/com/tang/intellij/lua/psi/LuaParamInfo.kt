@@ -18,84 +18,73 @@ package com.tang.intellij.lua.psi
 
 import com.intellij.psi.stubs.StubInputStream
 import com.intellij.psi.stubs.StubOutputStream
-import com.intellij.util.BitUtil
 import com.intellij.util.io.StringRef
 import com.tang.intellij.lua.Constants
+import com.tang.intellij.lua.search.SearchContext
+import com.tang.intellij.lua.stubs.readTyNullable
+import com.tang.intellij.lua.stubs.writeTyNullable
 import com.tang.intellij.lua.ty.ITy
-import com.tang.intellij.lua.ty.ITyClass
 import com.tang.intellij.lua.ty.ITySubstitutor
-import com.tang.intellij.lua.ty.Ty
+import com.tang.intellij.lua.ty.Primitives
+import com.tang.intellij.lua.ty.TyMultipleResults
 
 /**
  * parameter info
  * Created by tangzx on 2017/2/4.
  */
-class LuaParamInfo {
-
-    var flags: Byte = 0
-    var name: String = ""
-    var ty: ITy = Ty.UNKNOWN
-
-    constructor(name: String, ty: ITy) {
-        this.name = name
-        this.ty = ty
-    }
-
-    constructor()
+class LuaParamInfo(val name: String, val ty: ITy?, val optional: Boolean) {
 
     override fun equals(other: Any?): Boolean {
-        //only check ty
-        return other is LuaParamInfo && other.ty == ty
+        return other is LuaParamInfo && other.optional == optional && other.ty == ty
+    }
+
+    fun equals(context: SearchContext, other: LuaParamInfo, equalityFlags: Int): Boolean {
+        if (ty == null) {
+            return other.ty == null
+        } else if (other.ty == null) {
+            return false
+        } else if (other.optional != optional) {
+            return false
+        }
+
+        return ty.equals(context, other.ty, equalityFlags)
     }
 
     override fun hashCode(): Int {
-        return ty.hashCode()
+        return if (optional) {
+            31 * ty.hashCode()
+        } else {
+            ty.hashCode()
+        }
     }
 
-    var isVarArgs: Boolean
-        get() = BitUtil.isSet(flags, FLAG_VARARGS)
-        set(value) {
-            flags = BitUtil.set(flags, FLAG_VARARGS, value)
-            if (value) name = "..."
+    fun substitute(context: SearchContext, substitutor: ITySubstitutor): LuaParamInfo {
+        val ty = this.ty ?: Primitives.UNKNOWN
+        val substitutedTy = TyMultipleResults.getResult(context, ty.substitute(context, substitutor))
+
+        if (substitutedTy === ty) {
+            return this
         }
 
-    var isSelf: Boolean
-        get() = BitUtil.isSet(flags, FLAG_SELF)
-        set(value) {
-            flags = BitUtil.set(flags, FLAG_SELF, value)
-            if (value) name = Constants.WORD_SELF
-        }
-
-    fun substitute(substitutor: ITySubstitutor): LuaParamInfo {
-        val pi = LuaParamInfo()
-        pi.flags = flags
-        pi.name = name
-        pi.ty = ty.substitute(substitutor)
-        return pi
+        return LuaParamInfo(name, substitutedTy, optional)
     }
 
     companion object {
-        const val FLAG_VARARGS: Byte = 0x1
-        const val FLAG_SELF: Byte = 0x2
-
         fun createSelf(thisType: ITy? = null): LuaParamInfo {
-            val pi = LuaParamInfo(Constants.WORD_SELF, thisType ?: Ty.UNKNOWN)
-            pi.isSelf = true
-            return pi
+            return LuaParamInfo(Constants.WORD_SELF, thisType, false)
         }
 
         fun deserialize(stubInputStream: StubInputStream): LuaParamInfo {
-            val paramInfo = LuaParamInfo()
-            paramInfo.name = StringRef.toString(stubInputStream.readName())
-            paramInfo.flags = stubInputStream.readByte()
-            paramInfo.ty = Ty.deserialize(stubInputStream)
-            return paramInfo
+            val name = StringRef.toString(stubInputStream.readName())
+            val ty = stubInputStream.readTyNullable()
+            val optional = stubInputStream.readBoolean()
+            return LuaParamInfo(name, ty, optional)
         }
 
         fun serialize(param: LuaParamInfo, stubOutputStream: StubOutputStream) {
             stubOutputStream.writeName(param.name)
-            stubOutputStream.writeByte(param.flags.toInt())
-            Ty.serialize(param.ty, stubOutputStream)
+            stubOutputStream.writeTyNullable(param.ty)
+            stubOutputStream.writeBoolean(param.optional)
         }
     }
 }

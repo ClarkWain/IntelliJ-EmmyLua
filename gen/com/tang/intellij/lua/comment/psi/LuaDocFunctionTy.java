@@ -4,26 +4,31 @@ package com.tang.intellij.lua.comment.psi;
 import java.util.List;
 import org.jetbrains.annotations.*;
 import com.intellij.psi.PsiElement;
+import com.tang.intellij.lua.psi.LuaTypeScope;
+import com.tang.intellij.lua.psi.LuaParamInfo;
 import com.tang.intellij.lua.ty.ITy;
 
-public interface LuaDocFunctionTy extends LuaDocTy {
+public interface LuaDocFunctionTy extends LuaDocTy, LuaTypeScope {
 
-  @NotNull
-  List<LuaDocFunctionParam> getFunctionParamList();
+  @Nullable
+  LuaDocFunctionParams getFunctionParams();
+
+  @Nullable
+  LuaDocFunctionReturnType getFunctionReturnType();
 
   @NotNull
   List<LuaDocGenericDef> getGenericDefList();
 
-  @Nullable
-  LuaDocTypeList getTypeList();
-
-  @Nullable
-  LuaDocVarargParam getVarargParam();
-
   @NotNull
   ITy getType();
 
-  @NotNull
+  @Nullable
+  LuaParamInfo[] getParams();
+
+  @Nullable
+  ITy getVarargParam();
+
+  @Nullable
   ITy getReturnType();
 
 }

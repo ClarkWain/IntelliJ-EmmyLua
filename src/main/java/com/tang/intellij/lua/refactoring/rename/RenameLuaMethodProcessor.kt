@@ -22,7 +22,7 @@ import com.intellij.psi.search.SearchScope
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.refactoring.rename.RenamePsiElementProcessor
 import com.intellij.util.MergeQuery
-import com.tang.intellij.lua.psi.LuaClassMethod
+import com.tang.intellij.lua.psi.LuaTypeMethod
 import com.tang.intellij.lua.psi.search.LuaOverridenMethodsSearch
 import com.tang.intellij.lua.psi.search.LuaOverridingMethodsSearch
 
@@ -32,11 +32,11 @@ import com.tang.intellij.lua.psi.search.LuaOverridingMethodsSearch
  */
 class RenameLuaMethodProcessor : RenamePsiElementProcessor() {
     override fun canProcessElement(psiElement: PsiElement): Boolean {
-        return psiElement is LuaClassMethod
+        return psiElement is LuaTypeMethod<*>
     }
 
     override fun prepareRenaming(element: PsiElement, newName: String, allRenames: MutableMap<PsiElement, String>, scope: SearchScope) {
-        val methodDef = element as LuaClassMethod
+        val classMethod = element as LuaTypeMethod<*>
 
         /**
          * bug fix #167
@@ -46,7 +46,7 @@ class RenameLuaMethodProcessor : RenamePsiElementProcessor() {
          */
         FileDocumentManager.getInstance().saveAllDocuments()
 
-        val search = MergeQuery(LuaOverridingMethodsSearch.search(methodDef), LuaOverridenMethodsSearch.search(methodDef))
+        val search = MergeQuery(LuaOverridingMethodsSearch.search(classMethod), LuaOverridenMethodsSearch.search(classMethod))
         search.forEach {
             allRenames[it] = newName
 

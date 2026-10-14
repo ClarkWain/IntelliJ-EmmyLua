@@ -8,28 +8,34 @@ import com.tang.intellij.lua.psi.LuaTypeAlias;
 import com.intellij.psi.PsiNameIdentifierOwner;
 import com.intellij.psi.StubBasedPsiElement;
 import com.tang.intellij.lua.stubs.LuaDocTagAliasStub;
-import com.tang.intellij.lua.ty.ITy;
+import com.tang.intellij.lua.ty.TyAlias;
 
 public interface LuaDocTagAlias extends LuaTypeAlias, LuaDocPsiElement, PsiNameIdentifierOwner, LuaDocTag, StubBasedPsiElement<LuaDocTagAliasStub> {
 
   @Nullable
+  LuaDocCommentString getCommentString();
+
+  @NotNull
+  List<LuaDocGenericDef> getGenericDefList();
+
+  @Nullable
   LuaDocTy getTy();
 
-  @Nullable
+  @NotNull
   PsiElement getId();
 
-  @Nullable
+  @NotNull
   PsiElement getNameIdentifier();
 
   @NotNull
   PsiElement setName(@NotNull String newName);
 
-  @Nullable
+  @NotNull
   String getName();
 
   int getTextOffset();
 
   @NotNull
-  ITy getType();
+  TyAlias getType();
 
 }

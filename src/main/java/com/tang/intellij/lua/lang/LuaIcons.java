@@ -65,7 +65,7 @@ public class LuaIcons {
     public static final Icon ROOT = getIcon("/icons/lua_root.svg");
     public static final Icon PROJECT = getIcon("/icons/lua_project.svg");
 
-    public static final Icon STRING_LITERAL = AllIcons.Nodes.Aspect;
+    public static final Icon SMART_SUGGESTION = AllIcons.Nodes.Aspect;
 
     public static class LineMarker {
         public static final Icon TailCall = getIcon("/icons/tail.png");

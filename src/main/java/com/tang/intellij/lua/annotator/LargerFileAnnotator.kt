@@ -30,14 +30,10 @@ class LargerFileAnnotator : Annotator {
             val file = psiElement.virtualFile
             val fileLimit = StringUtil.formatFileSize(LuaSettings.instance.tooLargerFileThreshold * 1024L)
             val fileSize = StringUtil.formatFileSize(file.length)
-            annotationHolder
-                .newAnnotation(
+            annotationHolder.newAnnotation(
                     HighlightSeverity.WARNING,
                     "The file size ($fileSize) exceeds configured limit ($fileLimit). Code insight features are not available."
-                )
-                .range(psiElement)
-                .fileLevel()
-                .create()
+            ).fileLevel().create()
         }
     }
 }

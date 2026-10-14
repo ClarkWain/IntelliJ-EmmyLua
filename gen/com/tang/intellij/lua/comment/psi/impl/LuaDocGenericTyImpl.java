@@ -36,6 +36,12 @@ public class LuaDocGenericTyImpl extends LuaDocTyImpl implements LuaDocGenericTy
 
   @Override
   @NotNull
+  public LuaDocTypeRef getTypeRef() {
+    return notNullChild(PsiTreeUtil.getChildOfType(this, LuaDocTypeRef.class));
+  }
+
+  @Override
+  @NotNull
   public ITy getType() {
     return LuaDocPsiImplUtilKt.getType(this);
   }

@@ -36,7 +36,7 @@ public class LuaDocStringLiteralTyImpl extends LuaDocTyImpl implements LuaDocStr
 
   @Override
   @NotNull
-  public PsiElement getContent() {
+  public PsiElement getValue() {
     return notNullChild(findChildByType(STRING_LITERAL));
   }
 

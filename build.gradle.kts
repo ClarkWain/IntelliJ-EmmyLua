@@ -19,8 +19,8 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import java.io.ByteArrayOutputStream
 
 plugins {
     id("org.jetbrains.intellij.platform") version "2.7.0"
@@ -45,6 +45,16 @@ data class BuildData(
 )
 
 val buildDataList = listOf(
+    BuildData(
+        ideaSDKShortVersion = "2025.2",
+        ideaSDKVersion = "2025.2.5",
+        sinceBuild = "252",
+        untilBuild = "252.*",
+        bunch = "212",
+        targetCompatibilityLevel = JavaVersion.VERSION_21,
+        buildJdkVersion = JavaVersion.VERSION_21,
+        jvmTarget = "21"
+    ),
     BuildData(
         ideaSDKShortVersion = "2026.2",
         ideaSDKVersion = "2026.2",
@@ -72,29 +82,13 @@ val isCI = System.getenv("CI") != null
 // CI
 if (isCI) {
     version = System.getenv("CI_BUILD_VERSION")
-    exec {
-        executable = "git"
-        args("config", "--global", "user.email", "love.tangzx@qq.com")
-    }
-    exec {
-        executable = "git"
-        args("config", "--global", "user.name", "tangzx")
-    }
 }
 
 version = "${version}-IDEA${buildVersion}"
 
-fun getRev(): String {
-    val os = ByteArrayOutputStream()
-    exec {
-        executable = "git"
-        args("rev-parse", "HEAD")
-        standardOutput = os
-    }
-    return os.toString().substring(0, 7)
-}
-
 task("downloadEmmyDebugger", type = Download::class) {
+    overwrite(false)
+    onlyIfModified(true)
     src(arrayOf(
         "https://github.com/EmmyLua/EmmyLuaDebugger/releases/download/${emmyDebuggerVersion}/darwin-arm64.zip",
         "https://github.com/EmmyLua/EmmyLuaDebugger/releases/download/${emmyDebuggerVersion}/darwin-x64.zip",
@@ -162,12 +156,23 @@ project(":") {
 
     dependencies {
         implementation(fileTree(baseDir = "libs") { include("*.jar") })
+        implementation("org.jetbrains:markdown:0.3.1")
+        testImplementation("junit:junit:4.13.2")
+        testRuntimeOnly("org.opentest4j:opentest4j:1.3.0")
         implementation("com.google.code.gson:gson:2.8.6")
         implementation("org.scala-sbt.ipcsocket:ipcsocket:1.3.0")
         implementation("org.luaj:luaj-jse:3.0.1")
         implementation("com.jgoodies:forms:1.2.1")
         intellijPlatform {
-            intellijIdeaUltimate(buildVersionData.ideaSDKVersion)
+            val localIdePath = providers.gradleProperty("localIdePath").orNull
+            if (localIdePath != null) {
+                local(localIdePath)
+            } else {
+                intellijIdeaUltimate(buildVersionData.ideaSDKVersion)
+            }
+            bundledPlugin("com.intellij.java")
+            testFramework(TestFrameworkType.Bundled)
+            pluginVerifier()
             bundledModule("intellij.spellchecker")
         }
     }
@@ -176,7 +181,6 @@ project(":") {
         main {
             java.srcDirs("gen", "src/main/compat")
             resources.exclude("debugger/**")
-            resources.exclude("std/**")
         }
     }
 
@@ -194,38 +198,23 @@ project(":") {
         sandboxContainer.set(layout.buildDirectory.dir("${buildVersionData.ideaSDKShortVersion}/idea-sandbox"))
     }
 
-    task("bunch") {
-        doLast {
-            val rev = getRev()
-            // reset
-            exec {
-                executable = "git"
-                args("reset", "HEAD", "--hard")
-            }
-            // clean untracked files
-            exec {
-                executable = "git"
-                args("clean", "-d", "-f")
-            }
-            // switch
-            exec {
-                executable = if (isWin) "bunch/bin/bunch.bat" else "bunch/bin/bunch"
-                args("switch", ".", buildVersionData.bunch)
-            }
-            // reset to HEAD
-            exec {
-                executable = "git"
-                args("reset", rev)
-            }
-        }
-    }
 
     tasks {
+        verifyPlugin {
+            providers.gradleProperty("localIdePath").orNull?.let {
+                ides.setFrom(file(it))
+            }
+        }
+        test {
+            useJUnit()
+            maxHeapSize = "3g"
+            systemProperty("idea.is.unit.test", "true")
+        }
         buildPlugin {
-            dependsOn("bunch", "installEmmyDebugger")
+            dependsOn("installEmmyDebugger")
             archiveBaseName.set(buildVersionData.archiveName)
             from(fileTree(resDir) { include("!!DONT_UNZIP_ME!!.txt") }) {
-                into("/${project.name}")
+                into("/${buildVersionData.archiveName}")
             }
         }
 
@@ -236,6 +225,7 @@ project(":") {
         compileKotlin {
             compilerOptions {
                 jvmTarget.set(JvmTarget.fromTarget(buildVersionData.jvmTarget))
+                freeCompilerArgs.add("-opt-in=kotlin.contracts.ExperimentalContracts")
             }
         }
 

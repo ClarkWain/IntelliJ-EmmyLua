@@ -16,7 +16,10 @@
 
 package com.tang.intellij.lua.psi;
 
+import com.tang.intellij.lua.comment.psi.LuaDocTagReturn;
+import com.tang.intellij.lua.comment.psi.LuaDocTagVararg;
 import com.tang.intellij.lua.search.SearchContext;
+import com.tang.intellij.lua.stubs.LuaFuncBodyOwnerStub;
 import com.tang.intellij.lua.ty.ITy;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -29,15 +32,30 @@ import org.jetbrains.annotations.Nullable;
  *
  * Created by TangZX on 2016/12/9.
  */
-public interface LuaFuncBodyOwner extends LuaParametersOwner, LuaTypeGuessable {
+public interface LuaFuncBodyOwner<Stub extends LuaFuncBodyOwnerStub> extends LuaParametersOwner<Stub>, LuaPsiTypeGuessable, LuaCommentOwner
+{
+
     @Nullable
     LuaFuncBody getFuncBody();
+
+    @Nullable
+    default LuaDocTagReturn getTagReturn() {
+        return LuaPsiImplUtilKt.getTagReturn(this);
+    }
+
+    @Nullable
+    default LuaDocTagVararg getTagVararg() {
+        return LuaPsiImplUtilKt.getTagVararg(this);
+    }
 
     /**
      * 返回类型
      */
-    @NotNull
-    ITy guessReturnType(SearchContext searchContext);
+    @Nullable
+    ITy guessReturnType(@NotNull SearchContext searchContext);
+
+    @Nullable
+    ITy guessParentType(@NotNull SearchContext context);
 
     @Nullable
     default ITy getVarargType() {

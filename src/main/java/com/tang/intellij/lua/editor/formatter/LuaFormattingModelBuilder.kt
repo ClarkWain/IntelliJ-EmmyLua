@@ -19,6 +19,7 @@ package com.tang.intellij.lua.editor.formatter
 import com.intellij.formatting.*
 import com.intellij.lang.ASTNode
 import com.intellij.openapi.util.TextRange
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.codeStyle.CodeStyleSettings
 import com.tang.intellij.lua.editor.formatter.blocks.LuaScriptBlock
@@ -31,10 +32,9 @@ import com.tang.intellij.lua.psi.LuaTypes.*
  * Created by tangzx on 2016/12/3.
  */
 class LuaFormattingModelBuilder : FormattingModelBuilder {
-
     override fun createModel(formattingContext: FormattingContext): FormattingModel {
-        val settings = formattingContext.codeStyleSettings
         val element = formattingContext.psiElement
+        val settings = formattingContext.codeStyleSettings
         val commonSettings = settings.getCommonSettings(LuaLanguage.INSTANCE)
         val luaSettings = settings.getCustomSettings(LuaCodeStyleSettings::class.java)
         val ctx = LuaFormatContext(commonSettings, luaSettings, createSpaceBuilder(settings))
@@ -59,17 +59,16 @@ class LuaFormattingModelBuilder : FormattingModelBuilder {
                 .before(ELSEIF).lineBreakInCode()
                 .after(LOCAL).spaces(1) //local<SPACE>
                 .around(COLON).none()
-                //.around(CONCAT).spaces(if (luaCodeStyleSettings.SPACE_AROUND_CONCAT_OPERATOR) 1 else 0)
                 .before(COMMA).spaces(if (commonSettings.SPACE_BEFORE_COMMA) 1 else 0)
                 .after(COMMA).spaces(if (commonSettings.SPACE_AFTER_COMMA) 1 else 0) //,<SPACE>
-                .between(LCURLY, TABLE_FIELD).spaces(if (luaCodeStyleSettings.SPACE_INSIDE_INLINE_TABLE) 1 else 0) // {<SPACE>1, 2 }
-                .between(TABLE_FIELD, RCURLY).spaces(if (luaCodeStyleSettings.SPACE_INSIDE_INLINE_TABLE) 1 else 0) // { 1, 2<SPACE>}
+                .between(LCURLY, TABLE_FIELD).spaces(if (luaCodeStyleSettings.SPACE_INSIDE_INLINE_TABLE) 1 else 0)
+                .between(TABLE_FIELD, RCURLY).spaces(if (luaCodeStyleSettings.SPACE_INSIDE_INLINE_TABLE) 1 else 0)
                 .before(TABLE_FIELD_SEP).none() // { 1<SPACE>, 2 }
                 .after(TABLE_FIELD_SEP).spaces(if (luaCodeStyleSettings.SPACE_AFTER_TABLE_FIELD_SEP) 1 else 0) // { 1,<SPACE>2 }
                 .before(BLOCK).blankLines(0)
                 .afterInside(RPAREN, FUNC_BODY).lineBreakInCode()
                 .between(FUNCTION, FUNC_BODY).none()
-                .between(FUNCTION, NAME_DEF).spaces(1) //function<SPACE>name()
+                .between(FUNCTION, ID).spaces(1) //function<SPACE>name()
                 .around(BINARY_OP).spaces(if (luaCodeStyleSettings.SPACE_AROUND_BINARY_OPERATOR) 1 else 0)
                 .around(UNARY_OP).none()
                 .around(ASSIGN).lineBreakOrForceSpace(false, commonSettings.SPACE_AROUND_ASSIGNMENT_OPERATORS) // = 号两头不能换行

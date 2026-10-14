@@ -21,6 +21,7 @@ import com.intellij.application.options.IndentOptionsEditor
 import com.intellij.application.options.SmartIndentOptionsEditor
 import com.intellij.psi.codeStyle.CodeStyleSettingsCustomizable
 import com.intellij.psi.codeStyle.CodeStyleSettingsCustomizableOptions
+import com.intellij.psi.codeStyle.CommonCodeStyleSettings
 import com.intellij.psi.codeStyle.LanguageCodeStyleSettingsProvider
 import com.tang.intellij.lua.lang.LuaLanguage
 
@@ -31,7 +32,7 @@ import com.tang.intellij.lua.lang.LuaLanguage
 class LuaLanguageCodeStyleSettingsProvider : LanguageCodeStyleSettingsProvider() {
     override fun getLanguage(): LuaLanguage = LuaLanguage.INSTANCE
 
-    override fun getCodeSample(settingsType: SettingsType): String {
+    override fun getCodeSample(settingsType: LanguageCodeStyleSettingsProvider.SettingsType): String {
         return CodeStyleAbstractPanel.readFromFile(this.javaClass, "preview.lua.template")
     }
 
@@ -39,15 +40,15 @@ class LuaLanguageCodeStyleSettingsProvider : LanguageCodeStyleSettingsProvider()
         return SmartIndentOptionsEditor()
     }
 
-    /*override fun getDefaultCommonSettings(): CommonCodeStyleSettings {
+    override fun getDefaultCommonSettings(): CommonCodeStyleSettings {
         val commonSettings = CommonCodeStyleSettings(language)
         commonSettings.initIndentOptions()
         return commonSettings
-    }*/
+    }
 
-    override fun customizeSettings(consumer: CodeStyleSettingsCustomizable, settingsType: SettingsType) {
+    override fun customizeSettings(consumer: CodeStyleSettingsCustomizable, settingsType: LanguageCodeStyleSettingsProvider.SettingsType) {
         when (settingsType) {
-            SettingsType.SPACING_SETTINGS -> {
+            LanguageCodeStyleSettingsProvider.SettingsType.SPACING_SETTINGS -> {
                 consumer.showCustomOption(LuaCodeStyleSettings::class.java, "SPACE_AFTER_TABLE_FIELD_SEP", "After field sep", CodeStyleSettingsCustomizableOptions.getInstance().SPACES_OTHER)
                 consumer.showCustomOption(LuaCodeStyleSettings::class.java, "SPACE_AROUND_BINARY_OPERATOR", "Around binary operator", CodeStyleSettingsCustomizableOptions.getInstance().SPACES_OTHER)
                 consumer.showCustomOption(LuaCodeStyleSettings::class.java, "SPACE_INSIDE_INLINE_TABLE", "Inside inline table", CodeStyleSettingsCustomizableOptions.getInstance().SPACES_OTHER)
@@ -55,7 +56,7 @@ class LuaLanguageCodeStyleSettingsProvider : LanguageCodeStyleSettingsProvider()
                         "SPACE_BEFORE_COMMA",
                         "SPACE_AFTER_COMMA")
             }
-            SettingsType.WRAPPING_AND_BRACES_SETTINGS -> {
+            LanguageCodeStyleSettingsProvider.SettingsType.WRAPPING_AND_BRACES_SETTINGS -> {
                 consumer.showStandardOptions(
                         "METHOD_PARAMETERS_WRAP",
                         "ALIGN_MULTILINE_PARAMETERS",
@@ -74,12 +75,14 @@ class LuaLanguageCodeStyleSettingsProvider : LanguageCodeStyleSettingsProvider()
                         "ALIGN_TABLE_FIELD_ASSIGN",
                         "Align table field assign",
                         "Table")
+
+                consumer.showCustomOption(LuaCodeStyleSettings::class.java,
+                    "KEEP_MULTIPLE_STATEMENTS_IN_ONE_LINE",
+                    "Multiple statements in one line",
+                    "Keep when reformatting")
             }
-            SettingsType.COMMENTER_SETTINGS -> {
-                consumer.showStandardOptions(
-                    "LINE_COMMENT_ADD_SPACE",
-                    "LINE_COMMENT_AT_FIRST_COLUMN"
-                )
+            LanguageCodeStyleSettingsProvider.SettingsType.COMMENTER_SETTINGS -> {
+                consumer.showStandardOptions("LINE_COMMENT_ADD_SPACE", "LINE_COMMENT_AT_FIRST_COLUMN")
             }
             else -> {
             }

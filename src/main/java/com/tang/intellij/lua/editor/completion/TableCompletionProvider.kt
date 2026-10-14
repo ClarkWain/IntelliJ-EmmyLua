@@ -20,14 +20,11 @@ import com.intellij.codeInsight.completion.PrioritizedLookupElement
 import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInsight.lookup.LookupElementBuilder
 import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.util.Processor
 import com.tang.intellij.lua.lang.LuaIcons
-import com.tang.intellij.lua.psi.LuaClassField
-import com.tang.intellij.lua.psi.LuaClassMember
-import com.tang.intellij.lua.psi.LuaTableExpr
-import com.tang.intellij.lua.psi.shouldBe
+import com.tang.intellij.lua.psi.*
 import com.tang.intellij.lua.search.SearchContext
 import com.tang.intellij.lua.ty.ITy
+import com.tang.intellij.lua.ty.TypeMember
 
 class TableCompletionProvider : ClassMemberCompletionProvider() {
 
@@ -67,16 +64,20 @@ class TableCompletionProvider : ClassMemberCompletionProvider() {
             val project = table.project
             val prefixMatcher = completionResultSet.prefixMatcher
             val ty = table.shouldBe(SearchContext.get(project))
-            ty.eachTopClass(Processor { luaType ->
+
+            if (ty == null) {
+                return
+            }
+
+            ty.eachTopClass { luaType ->
                 val context = SearchContext.get(project)
-                luaType.lazyInit(context)
                 luaType.processMembers(context) { curType, member ->
                     member.name?.let {
                         if (prefixMatcher.prefixMatches(it)) {
                             val className = curType.displayName
-                            if (member is LuaClassField) {
-                                addField(completionResultSet, curType === luaType, className, member, null, object : HandlerProcessor() {
-                                    override fun process(element: LuaLookupElement, member: LuaClassMember, memberTy: ITy?): LookupElement {
+                            if (member is LuaTypeField) {
+                                addField(completionResultSet, curType === luaType, className, it, member, null, object : HandlerProcessor() {
+                                    override fun process(element: LuaLookupElement, member: TypeMember, memberTy: ITy?): LookupElement {
                                         element.itemText = element.itemText + " = "
                                         element.lookupString = element.lookupString + " = "
 
@@ -86,9 +87,10 @@ class TableCompletionProvider : ClassMemberCompletionProvider() {
                             }
                         }
                     }
+                    true
                 }
                 true
-            })
+            }
         }
     }
 }

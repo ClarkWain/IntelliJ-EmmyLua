@@ -31,31 +31,29 @@ class LuaRainbowVisitor : RainbowVisitor() {
 
     override fun visit(element: PsiElement) {
         if (element is LuaNameExpr ||
-                element is LuaNameDef ||
+                element is LuaLocalDef ||
                 element is LuaDocParamNameRef)
         {
             val resolve = when (element) {
-                is LuaNameExpr -> resolveLocal(element, null)
+                is LuaNameExpr -> resolveLocal(null, element)
                 else -> element
             }
-            if (resolve is LuaFuncBodyOwner) return
+            if (resolve is LuaFuncBodyOwner<*>) return
             // exclude 'self'
-            if (resolve !is LuaParamNameDef && element.text == Constants.WORD_SELF) return
+            if (resolve !is LuaParamDef && element.text == Constants.WORD_SELF) return
 
-            val context = PsiTreeUtil.findFirstParent(resolve) { it is LuaFuncBodyOwner }
+            val context = PsiTreeUtil.findFirstParent(resolve) { it is LuaFuncBodyOwner<*> }
             if (context != null) {
-                val rainbowElement = element
-
                 val name = when (resolve) {
-                    is LuaNameDef -> resolve.name
-                    else -> rainbowElement.text
+                    is LuaLocalDef -> resolve.name
+                    else -> element.text
                 }
                 val key = when (resolve) {
-                    is LuaParamNameDef -> LuaHighlightingData.PARAMETER
+                    is LuaParamDef -> LuaHighlightingData.PARAMETER
                     else -> null
                 }
 
-                val info = getInfo(context, rainbowElement, name, key)
+                val info = getInfo(context, element, name, key)
                 addInfo(info)
             }
         }

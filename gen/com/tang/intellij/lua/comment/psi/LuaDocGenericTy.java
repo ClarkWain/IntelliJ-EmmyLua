@@ -12,6 +12,9 @@ public interface LuaDocGenericTy extends LuaDocTy {
   List<LuaDocTy> getTyList();
 
   @NotNull
+  LuaDocTypeRef getTypeRef();
+
+  @NotNull
   ITy getType();
 
 }

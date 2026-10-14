@@ -33,6 +33,7 @@ import com.tang.intellij.lua.codeInsight.template.macro.SuggestTypeMacro
 import com.tang.intellij.lua.psi.*
 import com.tang.intellij.lua.psi.search.LuaShortNamesManager
 import com.tang.intellij.lua.search.SearchContext
+import com.tang.intellij.lua.ty.guessParentClass
 import org.jetbrains.annotations.Nls
 
 /**
@@ -50,27 +51,27 @@ class CreateFieldFromParameterIntention : BaseIntentionAction() {
     }
 
     override fun isAvailable(project: Project, editor: Editor, psiFile: PsiFile): Boolean {
-        val paramNameDef = getLuaParamNameDef(editor, psiFile) ?: return false
-        var parent: PsiElement? = paramNameDef.parent ?: return false
+        val paramDef = getLuaParamDef(editor, psiFile) ?: return false
+        var parent: PsiElement? = paramDef.parent ?: return false
         parent = parent!!.parent
-        return parent is LuaClassMethodDef
+        return parent is LuaClassMethodDefStat
     }
 
-    private fun getLuaParamNameDef(editor: Editor, psiFile: PsiFile): LuaParamNameDef? {
+    private fun getLuaParamDef(editor: Editor, psiFile: PsiFile): LuaParamDef? {
         val offset = editor.caretModel.offset
-        return LuaPsiTreeUtil.findElementOfClassAtOffset(psiFile, offset, LuaParamNameDef::class.java, false)
+        return LuaPsiTreeUtil.findElementOfClassAtOffset(psiFile, offset, LuaParamDef::class.java, false)
     }
 
     @Throws(IncorrectOperationException::class)
     override fun invoke(project: Project, editor: Editor, psiFile: PsiFile) {
-        val paramNameDef = getLuaParamNameDef(editor, psiFile)
-        if (paramNameDef != null) {
-            val methodDef = PsiTreeUtil.getParentOfType(paramNameDef, LuaClassMethodDef::class.java)
+        val paramDef = getLuaParamDef(editor, psiFile)
+        if (paramDef != null) {
+            val methodDef = PsiTreeUtil.getParentOfType(paramDef, LuaClassMethodDefStat::class.java)
             if (methodDef != null) {
                 val block = PsiTreeUtil.getChildOfType(methodDef.funcBody, LuaBlock::class.java)!!
 
                 ApplicationManager.getApplication().invokeLater {
-                    val paramName = paramNameDef.text
+                    val paramName = paramDef.text
                     val dialog = CreateFieldFromParameterDialog(project, paramName)
                     if (!dialog.showAndGet()) {
                         return@invokeLater
@@ -80,9 +81,9 @@ class CreateFieldFromParameterIntention : BaseIntentionAction() {
                     val createDoc = dialog.isCreateDoc
                     if (createDoc) {
                         val context = SearchContext.get(project)
-                        val classType = methodDef.guessClassType(context)
+                        val classType = methodDef.guessParentClass(context)
                         if (classType != null) {
-                            val def = LuaShortNamesManager.getInstance(project).findClass(classType.className, context)
+                            val def = LuaShortNamesManager.getInstance(project).findClass(context, classType.className)
                             if (def != null) {
                                 val tempString = String.format("\n---@field public %s \$type$\$END$", fieldName)
                                 val templateManager = TemplateManager.getInstance(project)

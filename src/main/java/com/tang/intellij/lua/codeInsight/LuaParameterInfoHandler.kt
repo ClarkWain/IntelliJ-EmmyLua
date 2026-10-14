@@ -38,18 +38,22 @@ class LuaParameterInfoHandler : ParameterInfoHandler<LuaArgs, ParameterInfoType>
         val luaArgs = PsiTreeUtil.findElementOfClassAtOffset(file, context.offset, LuaArgs::class.java, false)
         if (luaArgs != null) {
             val callExpr = luaArgs.parent as LuaCallExpr
+            val searchContext = SearchContext.get(context.project)
+            val type = callExpr.guessParentType(searchContext)
+
+            if (type == null) {
+                return null
+            }
+
             val isColonStyle = callExpr.isMethodColonCall
-            val type = callExpr.guessParentType(SearchContext.get(context.project))
             val list = mutableListOf<ParameterInfoType>()
             TyUnion.each(type) { ty ->
-                if (ty is ITyFunction) {
-                    ty.process(Processor {
-                        if ((it.colonCall && !isColonStyle) || it.params.isNotEmpty()) {
-                            list.add(ParameterInfoType(it, isColonStyle))
-                        }
-                        true
-                    })
-                }
+                ty.processSignatures(searchContext, Processor {
+                    if ((it.colonCall && !isColonStyle) || it.params?.isNotEmpty() == true) {
+                        list.add(ParameterInfoType(it, isColonStyle))
+                    }
+                    true
+                })
             }
             context.itemsToShow = list.toTypedArray()
         }
@@ -80,12 +84,13 @@ class LuaParameterInfoHandler : ParameterInfoHandler<LuaArgs, ParameterInfoType>
         var start = 0
         var end = 0
         val str = buildString {
-            o.sig.processArgs(null, o.isColonStyle) { idx, pi ->
+            o.sig.processParameters(null, o.isColonStyle) { idx, pi ->
                 if (idx > 0) append(", ")
                 if (idx == index) start = length
+                val ty = pi.ty ?: Primitives.UNKNOWN
                 append(pi.name)
-                append(":")
-                append(pi.ty.displayName)
+                append(": ")
+                append(ty.displayName)
                 if (idx == index) end = length
                 true
             }

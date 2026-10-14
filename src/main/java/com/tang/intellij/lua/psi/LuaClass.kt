@@ -19,6 +19,7 @@ package com.tang.intellij.lua.psi
 import com.intellij.navigation.NavigationItem
 import com.intellij.psi.PsiElement
 import com.tang.intellij.lua.ty.ITy
+import com.tang.intellij.lua.ty.ITyAlias
 import com.tang.intellij.lua.ty.ITyClass
 
 interface LuaTypeDef : PsiElement, NavigationItem {
@@ -29,4 +30,6 @@ interface LuaClass : LuaTypeDef {
     override val type: ITyClass
 }
 
-interface LuaTypeAlias : LuaTypeDef
+interface LuaTypeAlias : LuaTypeDef, LuaTypeScope {
+    override val type: ITyAlias
+}

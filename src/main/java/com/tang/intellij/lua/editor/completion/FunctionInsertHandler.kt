@@ -23,19 +23,17 @@ import com.intellij.psi.PsiElement
 import com.tang.intellij.lua.psi.*
 import com.tang.intellij.lua.ty.IFunSignature
 import com.tang.intellij.lua.ty.hasVarargs
-import com.tang.intellij.lua.ty.processArgs
+import com.tang.intellij.lua.ty.processParameters
 
 open class SignatureInsertHandler(val sig: IFunSignature, private val isColonStyle: Boolean = false) : ArgsInsertHandler() {
 
-    private val myParams: Array<LuaParamInfo> by lazy {
+    override val params: Array<LuaParamInfo> by lazy {
         val list = mutableListOf<LuaParamInfo>()
-        sig.processArgs(null, isColonStyle) { _, param ->
+        sig.processParameters(null, isColonStyle) { _, param ->
             list.add(param)
         }
         list.toTypedArray()
     }
-
-    override fun getParams(): Array<LuaParamInfo> = myParams
 
     override val isVarargs: Boolean
         get() = sig.hasVarargs()
@@ -50,7 +48,7 @@ class SignatureInsertHandlerForString(sig: IFunSignature,
         val startOffset = insertionContext.startOffset
         val indexExpr = insertionContext.file.findElementAt(startOffset)?.parent as? LuaIndexExpr
         if (indexExpr != null) {
-            val prefixExpr = indexExpr.prefixExpr
+            val prefixExpr = indexExpr.prefixExpression
             if (prefixExpr is LuaLiteralExpr && prefixExpr.kind == LuaLiteralKind.String) {
                 val node = prefixExpr.node
                 insertionContext.document.insertString(node.startOffset + node.textLength, ")")

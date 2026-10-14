@@ -35,3 +35,4 @@ jflex*.jar
 *.ipdb
 
 .intellijPlatform
+.kotlin/

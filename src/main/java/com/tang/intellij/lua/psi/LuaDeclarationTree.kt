@@ -25,8 +25,9 @@ import java.util.*
 
 interface LuaDeclarationTree {
     companion object {
-        private val key = Key.create<LuaDeclarationTree>("lua.object.tree.manager")
-        fun get(file: PsiFile): LuaDeclarationTree {
+        private val key = Key.create<LuaDeclarationTree>("lua.object.tree.declarations")
+        // Parallel inspections must not publish competing, partly built scope trees.
+        fun get(file: PsiFile): LuaDeclarationTree = synchronized(file) {
             var ret = file.getUserData(key)
             if (ret != null && ret.shouldRebuild()) {
                 file.putUserData(key, null)
@@ -49,7 +50,7 @@ interface LuaDeclarationTree {
                 file.putUserData(key, manager)
                 ret = manager
             }
-            return ret
+            ret
         }
     }
 
@@ -63,7 +64,7 @@ interface LuaDeclarationTree {
     }
 
     fun shouldRebuild(): Boolean
-    fun find(expr: LuaExpr): IDeclaration?
+    fun find(expression: LuaExpression<*>): IDeclaration?
     fun walkUp(pin: PsiElement, process: (declaration: IDeclaration) -> Boolean)
     fun walkUpLocal(pin: PsiElement, process: (declaration: IDeclaration) -> Boolean) {
         walkUp(pin) {
@@ -75,18 +76,18 @@ interface LuaDeclarationTree {
     }
 }
 
-private abstract class Node {
-    var next: Node? = null
-    var prev: Node? = null
+private abstract class DeclarationTreeNode {
+    var next: DeclarationTreeNode? = null
+    var prev: DeclarationTreeNode? = null
     abstract val pos: Int
 }
 
-private abstract class NodeContainer : Node() {
-    protected val children = mutableListOf<Node>()
-    private var _first: Node? = null
-    private var _last: Node? = null
+private abstract class DeclarationTreeNodeContainer : DeclarationTreeNode() {
+    protected val children = mutableListOf<DeclarationTreeNode>()
+    private var _first: DeclarationTreeNode? = null
+    private var _last: DeclarationTreeNode? = null
 
-    fun add(child: Node) {
+    fun add(child: DeclarationTreeNode) {
         children.add(child)
         if (_first == null)
             _first = child
@@ -96,7 +97,7 @@ private abstract class NodeContainer : Node() {
     }
 
     fun <T> processNode(clazz: Class<T>, process: (node: T) -> Boolean): Boolean {
-        var cur: Node? = _first
+        var cur: DeclarationTreeNode? = _first
         while (cur != null) {
             if (clazz.isInstance(cur)) {
                 if (!process(clazz.cast(cur)))
@@ -107,7 +108,7 @@ private abstract class NodeContainer : Node() {
         return true
     }
 
-    fun lastOrNull(predicate: (child: Node) -> Boolean): Node? {
+    fun lastOrNull(predicate: (child: DeclarationTreeNode) -> Boolean): DeclarationTreeNode? {
         var cur = _last
         while (cur != null) {
             if (predicate(cur))
@@ -128,7 +129,7 @@ private class Declaration(
         override val psi: PsiNamedElement,
         val flags: Int,
         val prevDeclaration: Declaration? = null
-) : Node(), LuaDeclarationTree.IDeclaration {
+) : DeclarationTreeNode(), LuaDeclarationTree.IDeclaration {
     private val children = mutableMapOf<String, Declaration>()
 
     fun findField(name: String): Declaration? {
@@ -161,14 +162,14 @@ private open class Scope(
         val tree: LuaDeclarationTreeBase,
         override val pos: Int,
         val parent: Scope? = null
-) : NodeContainer() {
+) : DeclarationTreeNodeContainer() {
 
     open fun walkOver(process: (declaration: Declaration) -> Boolean): Boolean {
         return true
     }
 
     open fun walkUp(pos: Int, lev: Int, process: (declaration: Declaration) -> Boolean) {
-        var cur: Node? = lastOrNull { it.pos < pos }
+        var cur: DeclarationTreeNode? = lastOrNull { it.pos < pos }
         while (cur != null) {
             if (cur is Declaration && !process(cur))
                 return
@@ -186,13 +187,17 @@ private open class Scope(
         return ret
     }
 
-    fun find(expr: LuaExpr): Declaration? {
-        if (expr is LuaNameExpr) {
-            return find(expr)
-        } else if (expr is LuaIndexExpr) {
-            val name = expr.name ?: return null
-            val declaration = find(expr.prefixExpr)
-            return declaration?.findField(name)
+    fun find(expression: LuaExpression<*>): Declaration? {
+        if (expression is LuaNameExpr) {
+            return find(expression)
+        } else if (expression is LuaIndexExpr) {
+            return find(expression.prefixExpression)?.let {
+                val fieldName = expression.name ?: expression.idExpr?.let { idExpr ->
+                    (idExpr as? LuaLiteralExpr)?.let { "[${it.text}]" }
+                } ?: return null
+
+                return it.findField(fieldName)
+            }
         }
         return null
     }
@@ -200,7 +205,7 @@ private open class Scope(
 
 private abstract class LuaDeclarationTreeBase(val file: PsiFile) : LuaRecursiveVisitor(), LuaDeclarationTree {
     companion object {
-        val scopeKey = Key.create<Scope>("lua.object.tree.scope")
+        val scopeKey = Key.create<Scope>("lua.object.tree.declarations.scope")
     }
 
     val modificationStamp: Long = file.modificationStamp
@@ -215,7 +220,7 @@ private abstract class LuaDeclarationTreeBase(val file: PsiFile) : LuaRecursiveV
 
     private fun push(psi: LuaDeclarationScope): Scope {
         val pos = getPosition(psi)
-        if (psi is LuaLocalDef) { // local a = a
+        if (psi is LuaLocalDefStat) { // local a = a
             return push(object : Scope(this, pos, curScope) {
                 override fun walkOver(process: (declaration: Declaration) -> Boolean): Boolean {
                     return processNode(Declaration::class.java, process)
@@ -290,55 +295,56 @@ private abstract class LuaDeclarationTreeBase(val file: PsiFile) : LuaRecursiveV
     }
 
     private fun createDeclaration(name: String, psi: PsiNamedElement, flags: Int): Declaration {
-        val first = if (psi is LuaExpr) find(psi) else null
+        val first = if (psi is LuaExpression<*>) find(psi) else null
         return Declaration(name, getPosition(psi), psi, flags, first)
     }
 
-    override fun find(expr: LuaExpr): Declaration? {
-        if (expr is LuaIndexExpr || expr is LuaNameExpr) {
-            val scope = findScope(expr)
-            return scope?.find(expr)?.firstDeclaration
+    override fun find(expression: LuaExpression<*>): Declaration? {
+        if (expression is LuaIndexExpr || expression is LuaNameExpr) {
+            val scope = findScope(expression)
+            return scope?.find(expression)?.firstDeclaration
         }
         return null
     }
 
-    override fun visitNameDef(o: LuaNameDef) {
+    override fun visitLocalDef(o: LuaLocalDef) {
         curScope?.add(createDeclaration(o.name, o, DeclarationFlag.Local))
     }
 
-    override fun visitParamNameDef(o: LuaParamNameDef) {
+    override fun visitParamDef(o: LuaParamDef) {
         curScope?.add(createDeclaration(o.name, o, DeclarationFlag.Local))
     }
 
-    override fun visitLocalFuncDef(o: LuaLocalFuncDef) {
+    override fun visitLocalFuncDefStat(o: LuaLocalFuncDefStat) {
         val name = o.name
         if (name != null)
             curScope?.add(createDeclaration(name, o, DeclarationFlag.Local or DeclarationFlag.Function))
-        super.visitLocalFuncDef(o)
+        super.visitLocalFuncDefStat(o)
     }
 
-    override fun visitClassMethodDef(o: LuaClassMethodDef) {
+    override fun visitClassMethodDefStat(o: LuaClassMethodDefStat) {
         val name = o.name
         if (name != null) {
-            val parentExpr = o.classMethodName.expr
+            val parentExpr = o.classMethodName.expression
             find(parentExpr)?.addField(createDeclaration(name, o, DeclarationFlag.Function or DeclarationFlag.ClassMember))
         }
-        super.visitClassMethodDef(o)
+        super.visitClassMethodDefStat(o)
     }
 
     override fun visitClassMethodName(o: LuaClassMethodName) {
     }
 
     override fun visitAssignStat(o: LuaAssignStat) {
-        o.varExprList.exprList.forEach { expr ->
+        o.varExprList.expressionList.forEach { expr ->
             if (expr is LuaNameExpr) {
                 val flags = find(expr)?.flags ?: DeclarationFlag.Global
                 curScope?.add(createDeclaration(expr.name, expr, flags))
             } else if (expr is LuaIndexExpr) {
-                val name = expr.name
-                if (name != null) {
-                    val declaration = curScope?.find(expr.prefixExpr)
-                    declaration?.addField(createDeclaration(name, expr, DeclarationFlag.ClassMember))
+                val fieldName = expr.name ?: (expr.idExpr as? LuaLiteralExpr)?.let { "[${it.text}]" }
+
+                if (fieldName != null) {
+                    val declaration = curScope?.find(expr.prefixExpression)
+                    declaration?.addField(createDeclaration(fieldName, expr, DeclarationFlag.ClassMember))
                 }
             }
         }

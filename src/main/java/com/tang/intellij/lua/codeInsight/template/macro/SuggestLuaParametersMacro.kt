@@ -56,8 +56,8 @@ class SuggestLuaParametersMacro(private val position: Position = Position.Templa
 
         if (func is LuaClosureExpr) {
             val ty = func.shouldBe(SearchContext.get(context.project)) as? ITyFunction ?: return null
-            return create(ty.mainSignature.params)
-        } else if (func is LuaClassMethod) {
+            return ty.mainSignature.params?.let { create(it) } ?: arrayOf()
+        } else if (func is LuaTypeMethod<*>) {
             val method = func.findOverridingMethod(SearchContext.get(context.project))
             val params = method?.params
             if (params != null)
@@ -67,7 +67,7 @@ class SuggestLuaParametersMacro(private val position: Position = Position.Templa
         return null
     }
 
-    private fun create(params: Array<LuaParamInfo>): Array<LookupElement> {
+    private fun create(params: Array<out LuaParamInfo>): Array<LookupElement> {
         val paramNames = mutableListOf<String>()
         params.forEach {
             paramNames.add(it.name)

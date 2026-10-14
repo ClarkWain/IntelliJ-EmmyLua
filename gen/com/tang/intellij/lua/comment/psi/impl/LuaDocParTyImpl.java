@@ -29,9 +29,9 @@ public class LuaDocParTyImpl extends LuaDocTyImpl implements LuaDocParTy {
   }
 
   @Override
-  @Nullable
+  @NotNull
   public LuaDocTy getTy() {
-    return PsiTreeUtil.getChildOfType(this, LuaDocTy.class);
+    return notNullChild(PsiTreeUtil.getChildOfType(this, LuaDocTy.class));
   }
 
   @Override

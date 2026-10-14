@@ -8,7 +8,7 @@ import com.tang.intellij.lua.ty.ITy;
 
 public interface LuaDocParTy extends LuaDocTy {
 
-  @Nullable
+  @NotNull
   LuaDocTy getTy();
 
   @NotNull

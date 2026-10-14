@@ -27,10 +27,15 @@ import com.intellij.psi.PsiNamedElement
 import com.intellij.refactoring.RefactoringActionHandler
 import com.intellij.refactoring.RefactoringActionHandlerFactory
 import com.tang.intellij.lua.Constants
+import com.tang.intellij.lua.lang.LuaFileType
 import com.tang.intellij.lua.psi.*
 
 class LocalNameShadowed : LocalInspectionTool() {
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean, session: LocalInspectionToolSession): PsiElementVisitor {
+        if (session.file.name.matches(LuaFileType.DEFINITION_FILE_REGEX)) {
+            return PsiElementVisitor.EMPTY_VISITOR
+        }
+
         return object : LuaVisitor() {
 
             private fun check(namedElement: PsiNamedElement) {
@@ -64,21 +69,17 @@ class LocalNameShadowed : LocalInspectionTool() {
             }
 
             override fun visitLocalDef(o: LuaLocalDef) {
-                o.nameList?.nameDefList?.forEach {
-                    val name = it.name
-                    if (name != Constants.WORD_UNDERLINE) {
-                        check(it)
-                    }
+                if (o.name != Constants.WORD_UNDERLINE) {
+                    check(o)
                 }
-                super.visitLocalDef(o)
             }
 
-            override fun visitLocalFuncDef(o: LuaLocalFuncDef) {
+            override fun visitLocalFuncDefStat(o: LuaLocalFuncDefStat) {
                 check(o)
-                super.visitLocalFuncDef(o)
+                super.visitLocalFuncDefStat(o)
             }
 
-            override fun visitParamNameDef(o: LuaParamNameDef) {
+            override fun visitParamDef(o: LuaParamDef) {
                 check(o)
             }
         }

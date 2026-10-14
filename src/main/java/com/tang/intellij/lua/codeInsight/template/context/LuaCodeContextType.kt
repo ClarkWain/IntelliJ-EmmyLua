@@ -19,6 +19,8 @@ package com.tang.intellij.lua.codeInsight.template.context
 import com.intellij.codeInsight.template.TemplateActionContext
 import com.intellij.codeInsight.template.TemplateContextType
 import com.intellij.psi.PsiWhiteSpace
+import com.intellij.psi.PsiComment
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.util.PsiUtilCore
 import com.tang.intellij.lua.comment.LuaCommentUtil
 import com.tang.intellij.lua.lang.LuaFileType
@@ -36,7 +38,7 @@ class LuaCodeContextType : TemplateContextType("LUA_CODE") {
         val offset = templateActionContext.startOffset
         if (PsiUtilCore.getLanguageAtOffset(file, offset).isKindOf(LuaLanguage.INSTANCE)) {
             val element = file.findElementAt(offset)
-            if (element == null || element is PsiWhiteSpace || LuaCommentUtil.isComment(element)) {
+            if (element == null || element is PsiWhiteSpace || PsiTreeUtil.getParentOfType(element, PsiComment::class.java, false) != null) {
                 return false
             }
             if (element.node.elementType in arrayOf(LuaTypes.STRING, LuaTypes.NUMBER)) {

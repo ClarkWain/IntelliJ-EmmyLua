@@ -26,7 +26,7 @@ import com.tang.intellij.lua.search.SearchContext
 class LuaFileFuzzyResolver : ILuaFileResolver {
     override fun find(project: Project, shortUrl: String, extNames: Array<String>): VirtualFile? {
         val context = SearchContext.get(project)
-        if (context.forStub)
+        if (context.isDumb)
             return null;
 
         var perfect: VirtualFile? = null

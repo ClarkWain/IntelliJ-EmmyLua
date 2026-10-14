@@ -14,9 +14,15 @@ public interface LuaDocTagType extends LuaDocTag, StubBasedPsiElement<LuaDocTagT
   LuaDocCommentString getCommentString();
 
   @Nullable
-  LuaDocTy getTy();
+  LuaDocTypeList getTypeList();
+
+  @NotNull
+  ITy getType(int index);
 
   @NotNull
   ITy getType();
+
+  @Nullable
+  PsiElement getVariadic();
 
 }

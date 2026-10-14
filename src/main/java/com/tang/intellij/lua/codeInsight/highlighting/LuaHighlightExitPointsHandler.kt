@@ -36,7 +36,8 @@ class LuaHighlightExitPointsHandler internal constructor(editor: Editor, file: P
         return listOf<PsiElement>(target)
     }
 
-    override fun selectTargets(list: List<PsiElement>, consumer: Consumer<in List<PsiElement>>) {
+    override fun selectTargets(list: MutableList<out PsiElement>, consumer: Consumer<in MutableList<out PsiElement>>) {
+
     }
 
     override fun computeUsages(list: List<PsiElement>) {
@@ -45,7 +46,7 @@ class LuaHighlightExitPointsHandler internal constructor(editor: Editor, file: P
                 addOccurrence(o)
             }
 
-            override fun visitFuncBodyOwner(o: LuaFuncBodyOwner) {
+            override fun visitLocalFuncDefStat(o: LuaLocalFuncDefStat) {
                 // ignore sub function
             }
 
@@ -67,7 +68,9 @@ class LuaHighlightExitPointsHandler internal constructor(editor: Editor, file: P
 
             val overloads = PsiTreeUtil.findChildrenOfType(comment, LuaDocTagOverload::class.java)
             overloads.forEach { overload ->
-                overload.functionTy?.typeList?.let { addOccurrence(it) }
+                overload.functionTy?.functionReturnType?.let {
+                    addOccurrence(it)
+                }
             }
         }
     }

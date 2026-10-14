@@ -24,12 +24,15 @@ import com.intellij.psi.stubs.StubOutputStream
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.BitUtil
 import com.intellij.util.io.StringRef
-import com.tang.intellij.lua.psi.*
+import com.tang.intellij.lua.psi.LuaTableExpr
+import com.tang.intellij.lua.psi.LuaTableField
+import com.tang.intellij.lua.psi.Visibility
 import com.tang.intellij.lua.psi.impl.LuaTableFieldImpl
+import com.tang.intellij.lua.psi.shouldCreateStub
+import com.tang.intellij.lua.search.SearchContext
 import com.tang.intellij.lua.stubs.index.LuaClassMemberIndex
 import com.tang.intellij.lua.stubs.index.StubKeys
-import com.tang.intellij.lua.ty.ITy
-import com.tang.intellij.lua.ty.getTableTypeName
+import com.tang.intellij.lua.ty.*
 
 class LuaTableFieldType : LuaStubElementType<LuaTableFieldStub, LuaTableField>("TABLE_FIELD") {
 
@@ -44,55 +47,118 @@ class LuaTableFieldType : LuaStubElementType<LuaTableFieldStub, LuaTableField>("
 
     private fun findTableExprTypeName(field: LuaTableField): String? {
         val table = PsiTreeUtil.getParentOfType(field, LuaTableExpr::class.java)
-        var ty: String? = null
-        if (table != null)
-            ty = getTableTypeName(table)
-        return ty
+        return if (table != null) getTableTypeName(table) else null
     }
 
     override fun createStub(field: LuaTableField, parentStub: StubElement<*>): LuaTableFieldStub {
-        val ty = field.comment?.docTy
-        val flags = BitUtil.set(0, FLAG_DEPRECATED, field.isDeprecated)
-        return LuaTableFieldStubImpl(ty,
-                field.fieldName,
-                findTableExprTypeName(field),
-                flags,
+        val className = findTableExprTypeName(field)
+        val indexTy = SearchContext.withDumb(field.project, Primitives.UNKNOWN) { context ->
+            field.guessIndexType(context)
+        }
+        val valueTy = SearchContext.withDumb(field.project, Primitives.UNKNOWN) { context ->
+            field.guessType(context)
+        }
+
+        var flags = BitUtil.set(0, FLAG_DEPRECATED, field.isDeprecated)
+        flags = BitUtil.set(flags, FLAG_EXPLICITLY_TYPED, field.isExplicitlyTyped)
+
+        if (field.name != null) {
+            return LuaTableFieldStubImpl(
+                    parentStub,
+                    this,
+                    className,
+                    field.name,
+                    flags,
+                    valueTy)
+        } else {
+            return LuaTableFieldStubImpl(
                 parentStub,
-                this)
+                this,
+                className,
+                indexTy,
+                true,
+                flags,
+                valueTy
+            )
+        }
     }
 
-    override fun serialize(fieldStub: LuaTableFieldStub, stubOutputStream: StubOutputStream) {
-        stubOutputStream.writeTyNullable(fieldStub.docTy)
-        stubOutputStream.writeName(fieldStub.name)
-        stubOutputStream.writeName(fieldStub.typeName)
-        stubOutputStream.writeShort(fieldStub.flags)
+    override fun serialize(stub: LuaTableFieldStub, stubOutputStream: StubOutputStream) {
+        // This shouldn't be necessary, but as usual IntelliJ is calling into our code and incorrectly indicating
+        // we're not in dumb mode whilst indexing is in progress. Quality.
+        SearchContext.withDumb(stub.psi.project, null) {
+            stubOutputStream.writeName(stub.className)
+            stubOutputStream.writeName(stub.name)
+            stubOutputStream.writeTyNullable(stub.indexTy)
+
+            if (stub.indexTy != null) {
+                stubOutputStream.writeBoolean(stub.isIndexExpression)
+            }
+
+            stubOutputStream.writeShort(stub.flags)
+            stubOutputStream.writeTyNullable(stub.valueTy)
+        }
     }
 
-    override fun deserialize(stream: StubInputStream, stubElement: StubElement<*>): LuaTableFieldStub {
-        val ty = stream.readTyNullable()
-        val fieldName = stream.readName()
-        val typeName = stream.readName()
-        val flags = stream.readShort()
-        return LuaTableFieldStubImpl(ty,
-                StringRef.toString(fieldName),
-                StringRef.toString(typeName),
-                flags.toInt(),
-                stubElement,
-                this)
+    override fun deserialize(stubInputStream: StubInputStream, stubElement: StubElement<*>): LuaTableFieldStub {
+        val className = StringRef.toString(stubInputStream.readName())
+        val name = StringRef.toString(stubInputStream.readName())
+        val indexType = stubInputStream.readTyNullable()
+        val isIndexExpression = if (indexType != null) {
+            stubInputStream.readBoolean()
+        } else false
+        val flags = stubInputStream.readShort().toInt()
+        val valueType = stubInputStream.readTyNullable()
+
+        return if (name != null) {
+            LuaTableFieldStubImpl(stubElement,
+                    this,
+                    className,
+                    name,
+                    flags,
+                    valueType)
+        } else {
+            LuaTableFieldStubImpl(stubElement,
+                    this,
+                    className,
+                    indexType,
+                    isIndexExpression,
+                    flags,
+                    valueType)
+        }
     }
 
     override fun indexStub(fieldStub: LuaTableFieldStub, indexSink: IndexSink) {
+        val className = fieldStub.className ?: return
         val fieldName = fieldStub.name
-        val typeName = fieldStub.typeName
-        if (fieldName != null && typeName != null) {
-            LuaClassMemberIndex.indexStub(indexSink, typeName, fieldName)
 
+        if (fieldName != null) {
+            LuaClassMemberIndex.indexMemberStub(indexSink, className, fieldName)
             indexSink.occurrence(StubKeys.SHORT_NAME, fieldName)
+        }
+
+        val indexTy = fieldStub.indexTy ?: return
+        val valueTy = fieldStub.valueTy
+
+        if (valueTy is TyMultipleResults) {
+            if (valueTy.variadic) {
+                LuaClassMemberIndex.indexIndexerStub(indexSink, className, Primitives.NUMBER)
+            } else {
+                val startIndex = (indexTy as TyPrimitiveLiteral).value.toInt()
+
+                for (i in 0 until valueTy.list.size) {
+                    val resultIndexTy = TyPrimitiveLiteral.getTy(TyPrimitiveKind.Number, (startIndex + i).toString())
+                    LuaClassMemberIndex.indexIndexerStub(indexSink, className, resultIndexTy)
+                }
+            }
+        } else {
+            LuaClassMemberIndex.indexIndexerStub(indexSink, className, indexTy)
         }
     }
 
     companion object {
         const val FLAG_DEPRECATED = 0x20
+        const val FLAG_EXPLICITLY_TYPED = 0x40
     }
 }
 
@@ -101,21 +167,53 @@ class LuaTableFieldType : LuaStubElementType<LuaTableFieldStub, LuaTableField>("
  * Created by tangzx on 2017/1/14.
  */
 interface LuaTableFieldStub : LuaClassMemberStub<LuaTableField> {
-    val typeName: String?
+    val className: String?
+
     val name: String?
+    val indexTy: ITy?
+    val isIndexExpression: Boolean
+
     val flags: Int
+
+    val valueTy: ITy?
+
+    override val docTy: ITy?
+        get() = valueTy
 }
 
-class LuaTableFieldStubImpl(
-        override val docTy: ITy?,
-        override val name: String?,
-        override val typeName: String?,
-        override val flags: Int,
-        parent: StubElement<*>,
-        elementType: LuaStubElementType<*, *>
-) : LuaStubBase<LuaTableField>(parent, elementType), LuaTableFieldStub {
+class LuaTableFieldStubImpl : LuaStubBase<LuaTableField>, LuaTableFieldStub {
+    override val className: String?
+    override val name: String?
+    override val indexTy: ITy?
+    override val isIndexExpression: Boolean
+    override val flags: Int
+    override val valueTy: ITy?
+
     override val isDeprecated: Boolean
         get() = BitUtil.isSet(flags, LuaTableFieldType.FLAG_DEPRECATED)
 
-    override val visibility = Visibility.PUBLIC
+    override val isExplicitlyTyped: Boolean
+        get() = BitUtil.isSet(flags, LuaTableFieldType.FLAG_EXPLICITLY_TYPED)
+
+    override val visibility: Visibility = Visibility.PUBLIC
+
+    constructor(parent: StubElement<*>, elementType: LuaStubElementType<*, *>, className: String?, name: String?, flags: Int, valueTy: ITy?)
+            : super(parent, elementType) {
+        this.className = className
+        this.name = name
+        this.indexTy = null
+        this.isIndexExpression = false
+        this.flags = flags
+        this.valueTy = valueTy
+    }
+
+    constructor(parent: StubElement<*>, elementType: LuaStubElementType<*, *>, className: String?, indexType: ITy?, isIndexExpression: Boolean, flags: Int, valueTy: ITy?)
+            : super(parent, elementType) {
+        this.className = className
+        this.name = null
+        this.indexTy = indexType
+        this.isIndexExpression = isIndexExpression
+        this.flags = flags
+        this.valueTy = valueTy
+    }
 }

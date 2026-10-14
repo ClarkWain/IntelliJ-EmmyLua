@@ -36,12 +36,7 @@ class LuaLanguageInjector : LanguageInjector {
                 if (comment != null) {
                     val lanDef = PsiTreeUtil.findChildOfType(comment, LuaDocTagLan::class.java)
                     if (lanDef != null) {
-                        var lanId = lanDef.id?.text ?: return
-                        if (lanId.startsWith("\"") || lanId.startsWith("'"))
-                            lanId = lanId.substring(1, lanId.length - 1)
-                        if (lanId.isEmpty()) return
-
-                        val lan = Language.findLanguageByID(lanId)
+                        val lan = Language.findLanguageByID(lanDef.property?.text)
                         if (lan != null) {
                             val le:LuaLiteralExpr = injectionHost
                             val content = LuaString.getContent(le.text)

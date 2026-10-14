@@ -19,50 +19,173 @@ package com.tang.intellij.lua.search
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiFile
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.ProjectAndLibrariesScope
 import com.tang.intellij.lua.ext.ILuaTypeInfer
-import com.tang.intellij.lua.psi.LuaTypeGuessable
+import com.tang.intellij.lua.psi.LuaPsiTypeGuessable
+import com.tang.intellij.lua.psi.ScopedTypeSubstitutor
 import com.tang.intellij.lua.ty.ITy
-import com.tang.intellij.lua.ty.Ty
 import java.util.*
 
 /**
 
  * Created by tangzx on 2017/1/14.
  */
-class SearchContext private constructor(val project: Project) {
+abstract class SearchContext() {
+    abstract val project: Project
+    abstract val element: PsiElement?
+    abstract val identifier: String
+
+    open fun getProjectContext(): ProjectSearchContext {
+        return ProjectSearchContext(this)
+    }
+
+    val index: Int get() = myIndex // Multiple results index
+    val supportsMultipleResults: Boolean get() = myMultipleResults
+
+    private var myDumb = contextStack.get().lastOrNull()?.isDumb ?: false
+    private var myIndex = 0
+    private var myMultipleResults = false
+    private var myInStack = false
+    private var myScope: GlobalSearchScope? = null
+    private var myAbstractGenericScopeNames: Set<String>? = null
+
+    private val myInferCache = mutableMapOf<LuaPsiTypeGuessable, ITy>()
+
+    protected constructor(sourceContext: SearchContext) : this() {
+        myDumb = sourceContext.myDumb
+        myIndex = sourceContext.myIndex
+        myMultipleResults = sourceContext.myMultipleResults
+        myInStack = sourceContext.myInStack
+        myScope = sourceContext.myScope
+    }
+
+    fun <T> withIndex(index: Int, supportMultipleResults: Boolean = false, action: () -> T): T {
+        val savedIndex = this.index
+        val savedMultipleResults = this.supportsMultipleResults
+        myIndex = index
+        myMultipleResults = supportMultipleResults
+        val ret = action()
+        myIndex = savedIndex
+        myMultipleResults = savedMultipleResults
+        return ret
+    }
+
+    fun <T> withMultipleResults(action: () -> T): T {
+        val savedIndex = this.index
+        val savedMultipleResults = this.supportsMultipleResults
+        myIndex = -1
+        myMultipleResults = true
+        val ret = action()
+        myIndex = savedIndex
+        myMultipleResults = savedMultipleResults
+        return ret
+    }
+
+    fun <T> withListEntry(last: Boolean, action: () -> T): T {
+        return if (last) {
+            withMultipleResults(action)
+        } else {
+            withIndex(0, false, action)
+        }
+    }
+
+    val scope get(): GlobalSearchScope {
+        if (isDumb)
+            return GlobalSearchScope.EMPTY_SCOPE
+        if (myScope == null) {
+            myScope = ProjectAndLibrariesScope(project)
+        }
+        return myScope!!
+    }
+
+    val abstractGenericScopeNames get(): Set<String>? {
+        return myAbstractGenericScopeNames
+    }
+
+    val isDumb: Boolean
+        get() = myDumb || DumbService.isDumb(project)
+
+    fun <T> withScope(scope: GlobalSearchScope, action: () -> T): T {
+        val oriScope = myScope
+        myScope = scope
+        val ret = action()
+        myScope = oriScope
+        return ret
+    }
+
+    fun <T> withAbstractGenericScopeNames(scopeNames: Iterable<String>, action: () -> T): T {
+        val oldScopeNames = myAbstractGenericScopeNames
+        myAbstractGenericScopeNames = scopeNames.toSet()
+        val ret = action()
+        myAbstractGenericScopeNames = oldScopeNames
+        return ret
+    }
+
+    fun <T> withAbstractGenericScopeName(scopeName: String?, action: () -> T): T {
+        val oldScopeNames = myAbstractGenericScopeNames
+        myAbstractGenericScopeNames = scopeName?.let { setOf(scopeName) }
+        val ret = action()
+        myAbstractGenericScopeNames = oldScopeNames
+        return ret
+    }
+
+    data class CacheStats(
+        var hits: Int = 0,
+        var missed: Int = 0,
+        var skips: Int = 0
+    ) {
+        val resolutions = mapOf<String, Int>();
+    }
+
+    // Mapping type names to stats
+    val cacheStats = mapOf<String, CacheStats>()
+
+    private fun inferAndCache(psi: LuaPsiTypeGuessable): ITy? {
+        return if (index == -1) {
+            val result = myInferCache.getOrDefault(psi, null) ?: ILuaTypeInfer.infer(this, psi)
+
+            if (result != null) {
+                myInferCache[psi] = result
+            }
+
+            result
+        } else {
+            ILuaTypeInfer.infer(this, psi)
+        }
+    }
 
     companion object {
-        private val threadLocal = object : ThreadLocal<Stack<SearchContext>>() {
-            override fun initialValue(): Stack<SearchContext> {
-                return Stack()
-            }
-        }
+        private val contextStack = ThreadLocal.withInitial { Stack<SearchContext>() }
 
         fun get(project: Project): SearchContext {
-            val stack = threadLocal.get()
+            val stack = contextStack.get()
+
             return if (stack.isEmpty()) {
-                SearchContext(project)
+                ProjectSearchContext(project)
             } else {
                 stack.peek()
             }
         }
 
-        fun infer(psi: LuaTypeGuessable): ITy {
+        fun infer(psi: LuaPsiTypeGuessable): ITy? {
             return with(psi.project) { it.inferAndCache(psi) }
         }
 
-        fun infer(psi: LuaTypeGuessable, context: SearchContext): ITy {
-            return with(context, Ty.UNKNOWN) { it.inferAndCache(psi) }
+        fun infer(context: SearchContext, psi: LuaPsiTypeGuessable): ITy? {
+            return with(context, null) {
+                it.inferAndCache(psi)?.let { ty ->
+                    ScopedTypeSubstitutor.substitute(context, ty)
+                }
+            }
         }
 
         private fun <T> with(ctx: SearchContext, defaultValue: T, action: (ctx: SearchContext) -> T): T {
             return if (ctx.myInStack) {
-                action(ctx)
+                val result = action(ctx)
+                result
             } else {
-                val stack = threadLocal.get()
+                val stack = contextStack.get()
                 val size = stack.size
                 stack.push(ctx)
                 ctx.myInStack = true
@@ -83,105 +206,19 @@ class SearchContext private constructor(val project: Project) {
             return with(ctx, action)
         }
 
-        @Suppress("UNUSED_PARAMETER")
-        fun <T> withStub(project: Project, file: PsiFile, defaultValue: T, action: (ctx: SearchContext) -> T): T {
-            val context = SearchContext(project)
-            return withStub(context, defaultValue, action)
+        fun <T> withDumb(project: Project, defaultValue: T, action: (ctx: SearchContext) -> T): T {
+            val context = ProjectSearchContext(project)
+            return withDumb(context, defaultValue, action)
         }
 
-        private fun <T> withStub(ctx: SearchContext, defaultValue: T, action: (ctx: SearchContext) -> T): T {
+        fun <T> withDumb(ctx: SearchContext, defaultValue: T, action: (ctx: SearchContext) -> T): T {
             return with(ctx, defaultValue) {
                 val dumb = it.myDumb
-                val stub = it.myForStub
                 it.myDumb = true
-                it.myForStub = true
                 val ret = action(it)
                 it.myDumb = dumb
-                it.myForStub = stub
                 ret
             }
         }
-
-        fun invalidateCache(project: Project) {
-            var searchContext = get(project)
-            searchContext.invalidateInferCache()
-        }
-    }
-
-    /**
-     * 用于有多返回值的索引设定
-     */
-    val index: Int get() = myIndex
-
-    private var myDumb = false
-    private var myForStub = false
-    private var myIndex = -1
-    private var myInStack = false
-    private val myGuardList = mutableListOf<InferRecursionGuard>()
-    private val myInferCache = mutableMapOf<LuaTypeGuessable, ITy>()
-    private var myScope: GlobalSearchScope? = null
-
-    fun <T> withIndex(index: Int, action: () -> T): T {
-        val savedIndex = this.index
-        myIndex = index
-        val ret = action()
-        myIndex = savedIndex
-        return ret
-    }
-
-    fun guessTuple() = index < 0
-
-    val scope get(): GlobalSearchScope {
-        if (isDumb)
-            return GlobalSearchScope.EMPTY_SCOPE
-        if (myScope == null) {
-            myScope = ProjectAndLibrariesScope(project)
-        }
-        return myScope!!
-    }
-
-    val isDumb: Boolean
-        get() = myDumb || DumbService.isDumb(project)
-
-    val forStub get() = myForStub
-
-    fun <T> withScope(scope: GlobalSearchScope, action: () -> T): T {
-        val oriScope = myScope
-        myScope = scope
-        val ret = action()
-        myScope = oriScope
-        return ret
-    }
-
-    fun withRecursionGuard(psi: PsiElement, type: GuardType, action: () -> ITy): ITy {
-        myGuardList.forEach {
-            if (it.check(psi, type)) {
-                return Ty.UNKNOWN
-            }
-        }
-        val guard = createGuard(psi, type)
-        if (guard != null)
-            myGuardList.add(guard)
-        val result = action()
-        if (guard != null)
-            myGuardList.remove(guard)
-        return result
-    }
-
-    private fun inferAndCache(psi: LuaTypeGuessable): ITy {
-        /*if (inferCache.containsKey(psi)) {
-            println("use cache!!!")
-        }*/
-        return myInferCache.getOrPut(psi) {
-            ILuaTypeInfer.infer(psi, this)
-        }
-    }
-
-    fun getTypeFromCache(psi: LuaTypeGuessable): ITy {
-        return myInferCache.getOrElse(psi) { Ty.UNKNOWN }
-    }
-
-    fun invalidateInferCache() {
-        myInferCache.clear()
     }
 }

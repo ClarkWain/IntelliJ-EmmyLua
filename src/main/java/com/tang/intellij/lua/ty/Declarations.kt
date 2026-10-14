@@ -16,82 +16,82 @@
 
 package com.tang.intellij.lua.ty
 
-import com.intellij.extapi.psi.StubBasedPsiElementBase
-import com.intellij.openapi.util.Computable
 import com.intellij.psi.util.PsiTreeUtil
 import com.tang.intellij.lua.Constants
-import com.tang.intellij.lua.comment.LuaCommentUtil
 import com.tang.intellij.lua.comment.psi.LuaDocTagField
-import com.tang.intellij.lua.comment.psi.LuaDocTagReturn
 import com.tang.intellij.lua.ext.recursionGuard
-import com.tang.intellij.lua.ext.stubOrPsiParent
 import com.tang.intellij.lua.psi.*
-import com.tang.intellij.lua.search.GuardType
+import com.tang.intellij.lua.search.PsiSearchContext
 import com.tang.intellij.lua.search.SearchContext
-import com.tang.intellij.lua.stubs.LuaFuncBodyOwnerStub
+import com.tang.intellij.lua.search.withRecursionGuard
 
-fun infer(element: LuaTypeGuessable?, context: SearchContext): ITy {
+fun infer(context: SearchContext, element: LuaPsiTypeGuessable?): ITy? {
     if (element == null)
-        return Ty.UNKNOWN
-    return SearchContext.infer(element, context)
+        return null
+    return SearchContext.infer(context, element)
 }
 
-internal fun inferInner(element: LuaTypeGuessable, context: SearchContext): ITy {
+internal fun inferInner(context: SearchContext, element: LuaPsiTypeGuessable): ITy? {
     return when (element) {
-        is LuaFuncBodyOwner -> element.infer(context)
-        is LuaExpr -> inferExpr(element, context)
-        is LuaParamNameDef -> element.infer(context)
-        is LuaNameDef -> element.infer(context)
+        is LuaFuncBodyOwner<*> -> element.infer(context)
+        is LuaExpression<*> -> inferExpr(context, element)
+        is LuaParamDef -> element.infer(context)
+        is LuaLocalDef -> element.infer(context)
         is LuaDocTagField -> element.infer()
         is LuaTableField -> element.infer(context)
-        is LuaPsiFile -> inferFile(element, context)
-        else -> Ty.UNKNOWN
+        is LuaPsiFile -> inferFile(context, element)
+        else -> null
     }
 }
 
-fun inferReturnTy(owner: LuaFuncBodyOwner, searchContext: SearchContext): ITy {
-    if (owner is StubBasedPsiElementBase<*>) {
-        val stub = owner.stub
-        if (stub is LuaFuncBodyOwnerStub<*>) {
-            return stub.guessReturnTy(searchContext)
-        }
-    }
-
-    return inferReturnTyInner(owner, searchContext)
+fun inferReturnTy(context: SearchContext, owner: LuaFuncBodyOwner<*>): ITy? {
+    return owner.stub?.guessReturnTy(context) ?: inferReturnTyInner(context, owner)
 }
 
-private fun inferReturnTyInner(owner: LuaFuncBodyOwner, searchContext: SearchContext): ITy {
-    if (owner is LuaCommentOwner) {
-        val comment = LuaCommentUtil.findComment(owner)
-        if (comment != null) {
-            val returnDef = PsiTreeUtil.findChildOfType(comment, LuaDocTagReturn::class.java)
-            if (returnDef != null) {
-                //return returnDef.resolveTypeAt(searchContext.index)
-                return returnDef.type
-            }
-        }
+private fun inferReturnTyInner(context: SearchContext, owner: LuaFuncBodyOwner<*>): ITy? {
+    val returnTag = owner.tagReturn
+
+    if (returnTag != null) {
+        return returnTag.type
     }
 
     //infer from return stat
-    return searchContext.withRecursionGuard(owner, GuardType.RecursionCall) {
-        var type: ITy = Ty.VOID
+    return withRecursionGuard("inferReturnTyInner", owner, context.isDumb) {
+        var type: ITy? = Primitives.VOID
+
         owner.acceptChildren(object : LuaRecursiveVisitor() {
             override fun visitReturnStat(o: LuaReturnStat) {
-                val guessReturnType = guessReturnType(o, searchContext.index, searchContext)
-                TyUnion.each(guessReturnType) {
-                    /**
-                     * 注意，不能排除anonymous
-                     * local function test()
-                     *      local v = xxx()
-                     *      v.yyy = zzz
-                     *      return v
-                     * end
-                     *
-                     * local r = test()
-                     *
-                     * type of r is an anonymous ty
-                     */
-                    type = type.union(it)
+                if (type == null) {
+                    return
+                }
+
+                val c = PsiSearchContext(o)
+                val returnTy = if (context.index != 0 || context.supportsMultipleResults) {
+                    c.withIndex(context.index, context.supportsMultipleResults) {
+                        guessReturnType(o, c)
+                    }
+                } else {
+                    guessReturnType(o, c)
+                }
+
+                if (returnTy == null) {
+                    type = null
+                } else {
+                    TyUnion.each(returnTy) {
+                        /**
+                         * 注意，不能排除anonymous
+                         * local function test()
+                         *      local v = xxx()
+                         *      v.yyy = zzz
+                         *      return v
+                         * end
+                         *
+                         * local r = test()
+                         *
+                         * type of r is an anonymous ty
+                         */
+                        type = type!!.union(context, it)
+                    }
                 }
             }
 
@@ -99,75 +99,93 @@ private fun inferReturnTyInner(owner: LuaFuncBodyOwner, searchContext: SearchCon
             override fun visitLabelStat(o: LuaLabelStat) {}
             override fun visitAssignStat(o: LuaAssignStat) {}
             override fun visitGotoStat(o: LuaGotoStat) {}
-            override fun visitClassMethodDef(o: LuaClassMethodDef) {}
-            override fun visitFuncDef(o: LuaFuncDef) {}
-            override fun visitLocalDef(o: LuaLocalDef) {}
-            override fun visitLocalFuncDef(o: LuaLocalFuncDef) {}
+            override fun visitClassMethodDefStat(o: LuaClassMethodDefStat) {}
+            override fun visitFuncDefStat(o: LuaFuncDefStat) {}
+            override fun visitLocalDefStat(o: LuaLocalDefStat) {}
+            override fun visitLocalFuncDefStat(o: LuaLocalFuncDefStat) {}
+            override fun visitFuncBodyOwner(o: LuaFuncBodyOwner<*>) {}
         })
         type
     }
 }
 
-private fun LuaParamNameDef.infer(context: SearchContext): ITy {
-    var type = resolveParamType(this, context)
-    //anonymous
-    if (Ty.isInvalid(type))
-        type = TyClass.createAnonymousType(this)
-    return type
+private fun LuaParamDef.infer(context: SearchContext): ITy {
+    val ty = resolveParamType(context, this)
+
+    if (ty == null) {
+        val stub = this.stub
+        val tyName = stub?.anonymousType ?: getAnonymousTypeName(this)
+        return createSerializedClass(tyName, null, this.name, null, null, null, TyFlags.ANONYMOUS or TyFlags.UNKNOWN)
+    }
+
+    return ty
 }
 
-private fun LuaNameDef.infer(context: SearchContext): ITy {
-    var type: ITy = Ty.UNKNOWN
-    val parent = this.stubOrPsiParent
+private fun LuaLocalDef.infer(context: SearchContext): ITy? {
+    var type: ITy? = null
+    val parent = this.parent
     if (parent is LuaTableField) {
-        val expr = PsiTreeUtil.findChildOfType(parent, LuaExpr::class.java)
-        if (expr != null)
-            type = infer(expr, context)
+        val expr = PsiTreeUtil.findChildOfType(parent, LuaExpression::class.java)
+        if (expr != null) {
+            // TODO: unknown vs. any - should be unknown
+            type = infer(context, expr) ?: Primitives.UNKNOWN
+        }
     } else {
         val docTy = this.docTy
-        if (docTy != null)
-            return docTy
 
-        val localDef = PsiTreeUtil.getStubOrPsiParentOfType(this, LuaLocalDef::class.java)
-        if (localDef != null) {
-            //计算 expr 返回类型
-            if (Ty.isInvalid(type) /*&& !context.forStub*/) {
-                val nameList = localDef.nameList
-                val exprList = localDef.exprList
-                if (nameList != null && exprList != null) {
-                    type = context.withIndex(localDef.getIndexFor(this)) {
-                        exprList.guessTypeAt(context)
-                    }
-                }
+        val localStat = PsiTreeUtil.getParentOfType(this, LuaLocalDefStat::class.java)
+
+        if (localStat != null) {
+            val index = localStat.getIndexFor(this)
+
+            if (docTy != null) {
+                return if (docTy is TyMultipleResults) {
+                    docTy.list.getOrNull(index) ?: Primitives.NIL
+                } else docTy
             }
 
-            //anonymous
-            if (type !is ITyPrimitive)
-                type = type.union(TyClass.createAnonymousType(this))
-            else if (type == Ty.TABLE)
-                type = type.union(TyClass.createAnonymousType(this))
+            val exprList = localStat.exprList
+
+            type = if (exprList != null) {
+                // TODO: unknown vs. any - should be unknown
+                val localContext = PsiSearchContext(localStat)
+                localContext.withIndex(index, false) {
+                    exprList.guessTypeAt(localContext)
+                } ?: Primitives.UNKNOWN
+            } else {
+                val stub = this.stub
+                val tyName = stub?.anonymousType ?: getAnonymousTypeName(this)
+                createSerializedClass(tyName, null, this.name, null, null, null, TyFlags.ANONYMOUS or TyFlags.UNKNOWN)
+            }
+
+            if (type is TyPrimitiveLiteral) {
+                type = type.primitiveType
+            }
+        } else if (docTy != null) {
+            if (!context.supportsMultipleResults && docTy is TyMultipleResults) {
+                return docTy.list.getOrNull(context.index) ?: Primitives.NIL
+            } else return docTy
         }
     }
     return type
 }
 
-private fun LuaDocTagField.infer(): ITy {
+private fun LuaDocTagField.infer(): ITy? {
     val stub = stub
     if (stub != null)
-        return stub.type
-    return ty?.getType() ?: Ty.UNKNOWN
+        return stub.valueTy
+    return valueType?.getType()
 }
 
-@Suppress("UNUSED_PARAMETER")
-private fun LuaFuncBodyOwner.infer(context: SearchContext): ITy {
-    if (this is LuaFuncDef)
+private fun LuaFuncBodyOwner<*>.infer(context: SearchContext): ITy {
+    if (this is LuaFuncDefStat)
         return TyPsiFunction(false, this, TyFlags.GLOBAL)
-    return if (this is LuaClassMethodDef) {
+    return if (this is LuaClassMethodDefStat) {
         TyPsiFunction(!this.isStatic, this, 0)
     } else TyPsiFunction(false, this, 0)
 }
 
-private fun LuaTableField.infer(context: SearchContext): ITy {
+private fun LuaTableField.infer(context: SearchContext): ITy? {
     val stub = stub
     //from comment
     val docTy = if (stub != null) stub.docTy else comment?.docTy
@@ -175,144 +193,197 @@ private fun LuaTableField.infer(context: SearchContext): ITy {
         return docTy
 
     //guess from value
-    val valueExpr = valueExpr
-    return if (valueExpr != null) infer(valueExpr, context) else Ty.UNKNOWN
+    return valueExpr?.let {
+        context.withListEntry(name == null && idExpr == null && this == parent.children.last()) {
+            infer(context, it)
+        }
+    }
 }
 
-private fun inferFile(file: LuaPsiFile, context: SearchContext): ITy {
-    return recursionGuard(file, Computable {
-        val moduleName = file.moduleName
+fun LuaPsiFile.returnStatement(): LuaReturnStat? {
+    if (this.getModuleName(SearchContext.get(this.project)) != null) {
+        return null
+    }
+
+    return recursionGuard(this, {
+        val stub = this.stub
+        if (stub != null) {
+            val statStub = stub.childrenStubs.lastOrNull { it.psi is LuaReturnStat }
+            statStub?.psi as? LuaReturnStat
+        } else {
+            val lastChild = this.lastChild
+            var stat: LuaReturnStat? = null
+            LuaPsiTreeUtil.walkTopLevelInFile(lastChild, LuaReturnStat::class.java) {
+                stat = it
+                false
+            }
+            stat
+        }
+    })
+}
+
+private fun inferFile(context: SearchContext, file: LuaPsiFile): ITy {
+    return recursionGuard(file, {
+        val moduleName = file.getModuleName(context)
         if (moduleName != null)
             TyLazyClass(moduleName)
         else {
-            val stub = file.stub
-            if (stub != null) {
-                val statStub = stub.childrenStubs.lastOrNull { it.psi is LuaReturnStat }
-                val stat = statStub?.psi
-                if (stat is LuaReturnStat)
-                    guessReturnType(stat, 0, context)
-                else null
-            } else {
-                val lastChild = file.lastChild
-                var stat: LuaReturnStat? = null
-                LuaPsiTreeUtil.walkTopLevelInFile(lastChild, LuaReturnStat::class.java) {
-                    stat = it
-                    false
-                }
-                if (stat != null)
-                    guessReturnType(stat, 0, context)
-                else null
-            }
+            file.returnStatement()?.let {
+                context.withIndex(0) { guessReturnType(it, context) }
+            } ?: Primitives.VOID
         }
-    }) ?: Ty.UNKNOWN
+    }) ?: Primitives.UNKNOWN
 }
 
 /**
  * 找参数的类型
- * @param paramNameDef param name
+ * @param paramDef param name
  * *
  * @param context SearchContext
  * *
  * @return LuaType
  */
-private fun resolveParamType(paramNameDef: LuaParamNameDef, context: SearchContext): ITy {
-    val paramName = paramNameDef.name
-    val paramOwner = PsiTreeUtil.getParentOfType(paramNameDef, LuaParametersOwner::class.java)
+private fun resolveParamType(context: SearchContext, paramDef: LuaParamDef): ITy? {
+    val stub = paramDef.stub
+    val paramName = stub?.name ?: paramDef.name
+    var ty: ITy? = stub?.docTy
 
-    val stub = paramNameDef.stub
-    val docTy:ITy? = if (stub != null) { stub.docTy } else {
-        // from comment
-        val commentOwner = PsiTreeUtil.getParentOfType(paramNameDef, LuaCommentOwner::class.java)
-        if (commentOwner != null) {
-            val docTy = commentOwner.comment?.getParamDef(paramName)?.type
-            if (docTy != null)
-                return docTy
-        }
-        null
+    val comment = PsiTreeUtil.getStubOrPsiParentOfType(paramDef, LuaCommentOwner::class.java)?.let { commentOwner ->
+        commentOwner.comment
+            ?: (commentOwner.parent?.parent as? LuaDeclaration)?.comment // Doc comment may appear on declarations
     }
-    if (docTy != null)
-        return docTy
 
-    // 如果是个类方法，则有可能在父类里
-    if (paramOwner is LuaClassMethodDef) {
-        val classType = paramOwner.guessClassType(context)
-        val methodName = paramOwner.name
-        var set: ITy = Ty.UNKNOWN
-        if (classType != null && methodName != null) {
-            TyClass.processSuperClass(classType, context) { superType ->
-                val superMethod = superType.findMember(methodName, context)
-                if (superMethod is LuaClassMethod) {
-                    val params = superMethod.params//todo : 优化
-                    for (param in params) {
-                        if (paramName == param.name) {
-                            set = param.ty
-                            if (set != Ty.UNKNOWN)
-                                return@processSuperClass false
-                        }
-                    }
-                }
-                true
+
+    if (comment != null) {
+        comment.getParamDef(paramName)?.let { paramTag ->
+            val contextElement = context.element
+
+            if (paramTag.optional != null
+                && contextElement != null
+                && PsiTreeUtil.isAncestor(comment.owner!!, contextElement, true)
+            ) {
+                // Within the scope of a function, optional parameters may be nil
+                ty = paramTag.type.union(context, Primitives.NIL)
+            } else {
+                ty = paramTag.type
             }
         }
-        if (set !is TyUnknown)
-            return set
     }
 
-    // module fun
-    // function method(self) end
-    if (paramOwner is LuaFuncDef && paramName == Constants.WORD_SELF) {
-        val moduleName = paramNameDef.moduleName
-        if (moduleName != null) {
-            return TyLazyClass(moduleName)
-        }
+    if (ty != null) {
+        return ty
     }
 
-    //for
-    if (paramOwner is LuaForBStat) {
-        val exprList = paramOwner.exprList
-        val callExpr = PsiTreeUtil.findChildOfType(exprList, LuaCallExpr::class.java)
-        val paramIndex = paramOwner.getIndexFor(paramNameDef)
+    val paramOwner = PsiTreeUtil.getStubOrPsiParentOfType(paramDef, LuaParametersOwner::class.java)
 
-        // iterator support
-        val type = callExpr?.guessType(context)
-        if (type != null) {
-            var result: ITy = Ty.UNKNOWN
-            TyUnion.each(type) {
-                if (it is ITyFunction) {
-                    val returnTy = it.mainSignature.returnTy
-                    if (returnTy is TyTuple) {
-                        result = result.union(returnTy.list.getOrElse(paramIndex) { Ty.UNKNOWN })
-                    } else if (paramIndex == 0) {
-                        result = result.union(returnTy)
+    when (paramOwner) {
+        is LuaClassMethodDefStat -> {
+            val effectiveMember = paramOwner.guessParentClass(context)?.let { parentClass ->
+                paramOwner.name?.let { name -> parentClass.findEffectiveMember(context, name) }
+            }
+
+            if (effectiveMember != null && effectiveMember != paramOwner) {
+                val param = (effectiveMember.guessType(context) as? ITyFunction)?.let {
+                    it.mainSignature.params?.getOrNull(paramOwner.getIndexFor(paramDef))
+                }
+                param?.ty?.let { paramTy ->
+                    val contextElement = context.element
+
+                    return if (param.optional
+                        && contextElement != null
+                        && PsiTreeUtil.isAncestor(paramOwner, contextElement, true)
+                    ) {
+                        // Within the scope of a function, optional parameters may be nil
+                        paramTy.union(context, Primitives.NIL)
+                    } else {
+                        paramTy
                     }
                 }
             }
-            if (result != Ty.UNKNOWN)
-                return result
         }
-    }
-    // for param = 1, 2 do end
-    if (paramOwner is LuaForAStat)
-        return Ty.NUMBER
-    /**
-     * ---@param processor fun(p1:TYPE):void
-     * local function test(processor)
-     * end
-     *
-     * test(function(p1)  end)
-     *
-     * guess type for p1
-     */
-    if (paramOwner is LuaClosureExpr) {
-        var ret: ITy = Ty.UNKNOWN
-        val shouldBe = paramOwner.shouldBe(context)
-        shouldBe.each {
-            if (it is ITyFunction) {
-                val paramIndex = paramOwner.getIndexFor(paramNameDef)
-                ret = ret.union(it.mainSignature.getParamTy(paramIndex))
+
+        is LuaFuncDefStat -> {
+            if (paramName == Constants.WORD_SELF) {
+                // module fun
+                // function method(self) end
+
+                val moduleName = paramDef.getModuleName(context)
+                if (moduleName != null) {
+                    ty = TyLazyClass(moduleName)
+                }
             }
         }
-        return ret
+
+        is LuaForBStat -> {
+            // for (iterator support)
+
+            val exprList = paramOwner.exprList
+            val paramIndex = paramOwner.getIndexFor(paramDef)
+
+            val iterator: ITyFunction?
+
+            val callExpr = exprList?.expressionList?.firstOrNull() as? LuaCallExpr
+
+            if (callExpr != null) {
+                iterator = context.withMultipleResults {
+                    callExpr.guessType(context)
+                }?.let {
+                    TyMultipleResults.getResult(context, it, 0) as? ITyFunction
+                }
+            } else {
+                iterator = (exprList?.expressionList?.firstOrNull() as? LuaPsiTypeGuessable)?.guessType(context) as? ITyFunction
+            }
+
+            if (iterator != null) {
+                val returnTy = iterator.mainSignature.returnTy?.not(context, Primitives.NIL)?.let {
+                    TyMultipleResults.flatten(context, it)
+                }
+
+                if (returnTy is TyMultipleResults) {
+                    ty = returnTy.list.getOrNull(paramIndex) ?: Primitives.UNKNOWN
+                } else if (paramIndex == 0) {
+                    ty = returnTy
+                } else {
+                    ty = Primitives.VOID
+                }
+            }
+        }
+
+        is LuaForAStat -> {
+            // for param = 1, 2 do end
+            ty = Primitives.NUMBER
+        }
+
+        is LuaClosureExpr -> {
+            /**
+             * ---@param processor fun(p1:TYPE):void
+             * local function test(processor)
+             * end
+             *
+             * test(function(p1)  end)
+             *
+             * guess type for p1
+             */
+
+            paramOwner.shouldBe(context)?.let {
+                Ty.eachResolved(context, it) {
+                    if (it is ITyFunction) {
+                        val paramIndex = paramOwner.getIndexFor(paramDef)
+                        val param = it.mainSignature.params?.getOrNull(paramIndex)
+                        val paramTy = param?.let {
+                            if (it.optional) {
+                                TyUnion.union(context, Primitives.NIL, it.ty)
+                            } else {
+                                it.ty
+                            }
+                        } ?: Primitives.UNKNOWN // TODO: Any vs unknown. Should be unknown
+
+                        ty = TyUnion.union(context, ty, paramTy)
+                    }
+                }
+            }
+        }
     }
-    return Ty.UNKNOWN
+
+    return ty
 }

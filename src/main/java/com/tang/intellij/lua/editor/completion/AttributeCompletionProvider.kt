@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017. tangzx(love.tangzx@qq.com)
+ * Copyright (c) 2020
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,17 +16,18 @@
 
 package com.tang.intellij.lua.editor.completion
 
+import com.intellij.codeInsight.completion.CompletionParameters
+import com.intellij.codeInsight.completion.CompletionProvider
+import com.intellij.codeInsight.completion.CompletionResultSet
 import com.intellij.codeInsight.lookup.LookupElementBuilder
+import com.intellij.util.ProcessingContext
+import com.tang.intellij.lua.Constants
 
-class AttributeCompletionProvider : LuaCompletionProvider() {
+class AttributeCompletionProvider : CompletionProvider<CompletionParameters>() {
 
-    private val names = arrayOf("const", "close")
-
-    override fun addCompletions(session: CompletionSession) {
-         names.forEach { name ->
-             session.addWord(name)
-             session.resultSet.addElement(LookupElementBuilder.create(name))
-         }
-        session.resultSet.stopHere()
+    override fun addCompletions(parameters: CompletionParameters, context: ProcessingContext, result: CompletionResultSet) {
+        result.addElement(LookupElementBuilder.create(Constants.WORD_CONST))
+        result.addElement(LookupElementBuilder.create(Constants.WORD_CLOSE))
+        result.stopHere()
     }
 }

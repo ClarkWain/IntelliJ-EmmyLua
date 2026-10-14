@@ -22,10 +22,12 @@ import com.intellij.lang.documentation.DocumentationProvider
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiTreeUtil
+import com.tang.intellij.lua.comment.psi.LuaDocTagAlias
 import com.tang.intellij.lua.comment.psi.LuaDocTagClass
 import com.tang.intellij.lua.comment.psi.LuaDocTagField
 import com.tang.intellij.lua.editor.completion.LuaDocumentationLookupElement
 import com.tang.intellij.lua.psi.*
+import com.tang.intellij.lua.search.PsiSearchContext
 import com.tang.intellij.lua.search.SearchContext
 import com.tang.intellij.lua.stubs.index.LuaClassIndex
 import com.tang.intellij.lua.ty.*
@@ -36,20 +38,23 @@ import com.tang.intellij.lua.ty.*
  */
 class LuaDocumentationProvider : AbstractDocumentationProvider(), DocumentationProvider {
 
-    private val renderer: ITyRenderer = object: TyRenderer() {
-        override fun renderType(t: String): String {
+    private val renderer = object: TyRenderer() {
+        override fun renderTypeName(t: String): String {
             return if (t.isNotEmpty()) buildString { DocumentationManagerUtil.createHyperlink(this, t, t, true) } else t
+        }
+
+        override fun renderGenericParams(params: Collection<String>?): String {
+            return if (params != null && params.isNotEmpty()) "&lt;${params.joinToString(", ")}&gt;" else ""
         }
     }
 
     override fun getQuickNavigateInfo(element: PsiElement?, originalElement: PsiElement?): String? {
-        if (element != null) {
-            when (element) {
-                is LuaTypeGuessable -> {
-                    val ty = element.guessType(SearchContext.get(element.project))
-                    return buildString {
-                        renderTy(this, ty, renderer)
-                    }
+        if (element is LuaPsiTypeGuessable) {
+            val context = if (originalElement != null) PsiSearchContext(originalElement) else SearchContext.get(element.project)
+            val ty = element.guessType(context)
+            if (ty != null) {
+                return buildString {
+                    renderTy(this, ty, renderer)
                 }
             }
         }
@@ -64,31 +69,40 @@ class LuaDocumentationProvider : AbstractDocumentationProvider(), DocumentationP
     }
 
     override fun getDocumentationElementForLink(psiManager: PsiManager, link: String, context: PsiElement?): PsiElement? {
-        return LuaClassIndex.find(link, SearchContext.get(psiManager.project))
+        return LuaClassIndex.find(SearchContext.get(psiManager.project), link)
     }
 
     override fun generateDoc(element: PsiElement, originalElement: PsiElement?): String? {
         val sb = StringBuilder()
         val tyRenderer = renderer
         when (element) {
-            is LuaParamNameDef -> renderParamNameDef(sb, element)
+            is LuaParamDef -> renderParamDef(sb, element, originalElement)
+            is LuaDocTagAlias -> renderAliasDef(sb, element, tyRenderer)
             is LuaDocTagClass -> renderClassDef(sb, element, tyRenderer)
-            is LuaClassMember -> renderClassMember(sb, element)
-            is LuaNameDef -> { //local xx
+            is LuaPsiTypeMember -> renderClassMember(sb, element)
+            is LuaLocalDef -> { //local xx
 
                 renderDefinition(sb) {
-                    sb.append("local <b>${element.name}</b>:")
-                    val ty = element.guessType(SearchContext.get(element.project))
-                    renderTy(sb, ty, tyRenderer)
+                    val context = if (originalElement != null) PsiSearchContext(originalElement) else SearchContext.get(element.project)
+                    val ty = element.guessType(context) ?: Primitives.UNKNOWN
+
+                    sb.append("local <b>${element.name}</b>: ")
+
+                    if (renderer.isMemberPunctuationRequired(ty)) {
+                        "(${renderTy(sb, ty, tyRenderer)})"
+                    } else {
+                        renderTy(sb, ty, tyRenderer)
+                    }
                 }
 
                 val owner = PsiTreeUtil.getParentOfType(element, LuaCommentOwner::class.java)
                 owner?.let { renderComment(sb, owner.comment, tyRenderer) }
             }
-            is LuaLocalFuncDef -> {
+            is LuaLocalFuncDefStat -> {
                 sb.wrapTag("pre") {
                     sb.append("local function <b>${element.name}</b>")
-                    val type = element.guessType(SearchContext.get(element.project)) as ITyFunction
+                    val context = if (originalElement != null) PsiSearchContext(originalElement) else SearchContext.get(element.project)
+                    val type = element.guessType(context) as ITyFunction
                     renderSignature(sb, type.mainSignature, tyRenderer)
                 }
                 renderComment(sb, element.comment, tyRenderer)
@@ -98,73 +112,146 @@ class LuaDocumentationProvider : AbstractDocumentationProvider(), DocumentationP
         return super<AbstractDocumentationProvider>.generateDoc(element, originalElement)
     }
 
-    private fun renderClassMember(sb: StringBuilder, classMember: LuaClassMember) {
-        val context = SearchContext.get(classMember.project)
-        val parentType = classMember.guessClassType(context)
-        val ty = classMember.guessType(context)
+    private fun renderClassMember(context: SearchContext, sb: StringBuilder, parentTy: ITy?, classMember: LuaPsiTypeMember): Boolean {
+        val effectiveMember = if (parentTy != null) {
+            classMember.name?.let {
+                parentTy.findEffectiveMember(context, it)
+            } ?: classMember.guessIndexType(context)?.let {
+                parentTy.findEffectiveIndexer(context, it)
+            }
+        } else {
+            classMember
+        }
+
+        if (effectiveMember == null) {
+            return false
+        }
+
+        val ty = effectiveMember.guessType(context) ?: Primitives.UNKNOWN
         val tyRenderer = renderer
 
         renderDefinition(sb) {
             //base info
-            if (parentType != null) {
-                renderTy(sb, parentType, tyRenderer)
-                with(sb) {
-                    when (ty) {
-                        is TyFunction -> {
-                            append(if (ty.isColonCall) ":" else ".")
-                            append(classMember.name)
-                            renderSignature(sb, ty.mainSignature, tyRenderer)
-                        }
-                        else -> {
-                            append(".${classMember.name}:")
-                            renderTy(sb, ty, tyRenderer)
-                        }
+            with(sb) {
+                if (ty is ITyFunction) {
+                    append("function ")
+                }
+
+                if (parentTy != null) {
+                    var renderedParentTy = if (parentTy is ITyArray) parentTy.base else parentTy
+
+                    if (renderedParentTy is TySerializedClass && isSuffixedClass(renderedParentTy)) {
+                        renderedParentTy = TySerializedClass(getSuffixlessClassName(renderedParentTy))
+                    }
+
+                    val parenthesesRequired = renderedParentTy is TyUnion || (renderedParentTy is TyGenericParameter && renderedParentTy.superClass != null)
+
+                    if (parenthesesRequired) {
+                        sb.append("(")
+                    }
+
+                    renderTy(sb, renderedParentTy, tyRenderer)
+
+                    if (parenthesesRequired) {
+                        sb.append(")")
                     }
                 }
-            } else {
-                //NameExpr
-                if (classMember is LuaNameExpr) {
-                    val nameExpr: LuaNameExpr = classMember
-                    with(sb) {
-                        append(nameExpr.name)
-                        when (ty) {
-                            is TyFunction -> renderSignature(sb, ty.mainSignature, tyRenderer)
-                            else -> {
-                                append(":")
-                                renderTy(sb, ty, tyRenderer)
-                            }
+
+                val name = classMember.name
+
+                if (name != null) {
+                    if (parentTy != null) {
+                        if (ty.isColonCall) {
+                            append(":")
+                        } else {
+                            append(".")
                         }
                     }
 
+                    append(name)
+                } else {
+                    val indexName = classMember.guessIndexType(context)?.displayName ?: "unknown"
+                    append("[${indexName}]")
+                }
+
+                if (ty is ITyFunction) {
+                    renderSignature(sb, ty.mainSignature, tyRenderer)
+                } else {
+                    sb.append(": ")
+
+                    val parenthesesRequired = ty is TyGenericParameter && ty.superClass != null
+
+                    if (parenthesesRequired) {
+                        sb.append("(")
+                    }
+
+                    renderTy(sb, ty, tyRenderer)
+
+                    if (parenthesesRequired) {
+                        sb.append(")")
+                    }
+                }
+
+                (classMember as? LuaNameExpr)?.let { nameExpr ->
                     val stat = nameExpr.parent.parent // VAR_LIST ASSIGN_STAT
                     if (stat is LuaAssignStat) renderComment(sb, stat.comment, tyRenderer)
                 }
             }
         }
 
-        //comment content
-        when (classMember) {
-            is LuaCommentOwner -> renderComment(sb, classMember.comment, tyRenderer)
-            is LuaDocTagField -> renderCommentString("  ", null, sb, classMember.commentString)
-            is LuaIndexExpr -> {
-                val p1 = classMember.parent
-                val p2 = p1.parent
-                if (p1 is LuaVarList && p2 is LuaAssignStat) {
-                    renderComment(sb, p2.comment, tyRenderer)
-                }
+        val commentOwner = classMember as? LuaCommentOwner ?: effectiveMember as? LuaCommentOwner
+
+        if (commentOwner != null) {
+            renderComment(sb, commentOwner.comment, tyRenderer)
+            return true
+        }
+
+        val docTagField = classMember as? LuaDocTagField ?: effectiveMember as? LuaDocTagField
+
+        if (docTagField != null) {
+            renderCommentString("  ", null, sb, docTagField.commentString)
+            return true
+        }
+
+        val assignStat = ((classMember as? LuaIndexExpr)?.parent as? LuaVarList)?.parent as? LuaAssignStat
+            ?: ((effectiveMember as? LuaIndexExpr)?.parent as? LuaVarList)?.parent as? LuaAssignStat
+
+        if (assignStat != null) {
+            renderComment(sb, assignStat.comment, tyRenderer)
+        }
+
+        return true
+    }
+
+    private fun renderClassMember(sb: StringBuilder, classMember: LuaPsiTypeMember) {
+        val context = SearchContext.get(classMember.project)
+        val parentType = (classMember.parent as? LuaTableExpr)?.shouldBe(context) ?: classMember.guessParentClass(context)
+
+        var memberRendered = false
+
+        if (parentType != null) {
+            Ty.eachResolved(context, parentType) {
+                memberRendered = renderClassMember(context, sb, it, classMember) || memberRendered
             }
+        }
+
+        if (!memberRendered) {
+            renderClassMember(context, sb, null, classMember)
         }
     }
 
-    private fun renderParamNameDef(sb: StringBuilder, paramNameDef: LuaParamNameDef) {
-        val owner = PsiTreeUtil.getParentOfType(paramNameDef, LuaCommentOwner::class.java)
-        val docParamDef = owner?.comment?.getParamDef(paramNameDef.name)
+    private fun renderParamDef(sb: StringBuilder, paramDef: LuaParamDef, originalElement: PsiElement?) {
+        val owner = PsiTreeUtil.getParentOfType(paramDef, LuaCommentOwner::class.java)
+        val docParamDef = owner?.comment?.getParamDef(paramDef.name)
         val tyRenderer = renderer
+
         if (docParamDef != null) {
-            renderDocParam(sb, docParamDef, tyRenderer, true)
+            val withinImplementation = originalElement?.let { PsiTreeUtil.isAncestor(owner, it, true) } ?: false
+            renderDocParam(sb, docParamDef, withinImplementation, tyRenderer, true)
         } else {
-            val ty = infer(paramNameDef, SearchContext.get(paramNameDef.project))
-            sb.append("<b>param</b> <code>${paramNameDef.name}</code> : ")
+            val context = originalElement?.let { PsiSearchContext(it ) } ?: SearchContext.get(paramDef.project)
+            val ty = infer(context, paramDef) ?: Primitives.UNKNOWN
+            sb.append("<b>param</b> <code>${paramDef.name}</code> : ")
             renderTy(sb, ty, tyRenderer)
         }
     }

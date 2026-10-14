@@ -17,6 +17,7 @@
 package com.tang.intellij.lua.project;
 
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer;
+import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.SearchableConfigurable;
 import com.intellij.openapi.project.Project;
@@ -34,7 +35,6 @@ import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.PlainDocument;
 import java.nio.charset.Charset;
-import java.util.Arrays;
 import java.util.Objects;
 import java.util.SortedMap;
 
@@ -43,16 +43,15 @@ import java.util.SortedMap;
  */
 public class LuaSettingsPanel implements SearchableConfigurable, Configurable.NoScroll {
     private final LuaSettings settings;
+
     private JPanel myPanel;
-    private JTextField constructorNames;
     private JCheckBox strictDoc;
     private JCheckBox smartCloseEnd;
     private JCheckBox showWordsInFile;
-    private JCheckBox enforceTypeSafety;
     private JCheckBox nilStrict;
-    private JCheckBox recognizeGlobalNameAsCheckBox;
+    private JCheckBox unknownIndexable;
+    private JCheckBox unknownCallable;
     private LuaAdditionalSourcesRootPanel additionalRoots;
-    private JCheckBox enableGenericCheckBox;
     private JCheckBox captureOutputDebugString;
     private JCheckBox captureStd;
     private JComboBox<String> defaultCharset;
@@ -61,16 +60,15 @@ public class LuaSettingsPanel implements SearchableConfigurable, Configurable.No
     private JTextField tooLargerFileThreshold;
 
     public LuaSettingsPanel() {
-        this.settings = LuaSettings.Companion.getInstance();
-        constructorNames.setText(settings.getConstructorNamesString());
+        settings = LuaSettings.Companion.getInstance();
+
         strictDoc.setSelected(settings.isStrictDoc());
         smartCloseEnd.setSelected(settings.isSmartCloseEnd());
         showWordsInFile.setSelected(settings.isShowWordsInFile());
-        enforceTypeSafety.setSelected(settings.isEnforceTypeSafety());
         nilStrict.setSelected(settings.isNilStrict());
-        recognizeGlobalNameAsCheckBox.setSelected(settings.isRecognizeGlobalNameAsType());
+        unknownIndexable.setSelected(settings.isUnknownIndexable());
+        unknownCallable.setSelected(settings.isUnknownCallable());
         additionalRoots.setRoots(settings.getAdditionalSourcesRoot());
-        enableGenericCheckBox.setSelected(settings.getEnableGeneric());
         requireFunctionNames.setText(settings.getRequireLikeFunctionNamesString());
         tooLargerFileThreshold.setDocument(new IntegerDocument());
         tooLargerFileThreshold.setText(String.valueOf(settings.getTooLargerFileThreshold()));
@@ -109,38 +107,33 @@ public class LuaSettingsPanel implements SearchableConfigurable, Configurable.No
 
     @Override
     public boolean isModified() {
-        return !StringUtil.equals(settings.getConstructorNamesString(), constructorNames.getText()) ||
-                !StringUtil.equals(settings.getRequireLikeFunctionNamesString(), requireFunctionNames.getText()) ||
+        return !StringUtil.equals(settings.getRequireLikeFunctionNamesString(), requireFunctionNames.getText()) ||
                 settings.getTooLargerFileThreshold() != getTooLargerFileThreshold() ||
                 settings.isStrictDoc() != strictDoc.isSelected() ||
                 settings.isSmartCloseEnd() != smartCloseEnd.isSelected() ||
                 settings.isShowWordsInFile() != showWordsInFile.isSelected() ||
-                settings.isEnforceTypeSafety() != enforceTypeSafety.isSelected() ||
                 settings.isNilStrict() != nilStrict.isSelected() ||
-                settings.isRecognizeGlobalNameAsType() != recognizeGlobalNameAsCheckBox.isSelected() ||
-                settings.getEnableGeneric() != enableGenericCheckBox.isSelected() ||
+                settings.isUnknownIndexable() != unknownIndexable.isSelected() ||
+                settings.isUnknownCallable() != unknownCallable.isSelected() ||
                 settings.getAttachDebugCaptureOutput() != captureOutputDebugString.isSelected() ||
                 settings.getAttachDebugCaptureStd() != captureStd.isSelected() ||
                 settings.getAttachDebugDefaultCharsetName() != defaultCharset.getSelectedItem() ||
                 settings.getLanguageLevel() != languageLevel.getSelectedItem() ||
-                !Arrays.equals(settings.getAdditionalSourcesRoot(), additionalRoots.getRoots(), String::compareTo);
+                !java.util.Arrays.equals(settings.getAdditionalSourcesRoot(), additionalRoots.getRoots());
     }
 
     @Override
     public void apply() {
-        settings.setConstructorNamesString(constructorNames.getText());
-        constructorNames.setText(settings.getConstructorNamesString());
         settings.setRequireLikeFunctionNamesString(requireFunctionNames.getText());
         requireFunctionNames.setText(settings.getRequireLikeFunctionNamesString());
         settings.setTooLargerFileThreshold(getTooLargerFileThreshold());
         settings.setStrictDoc(strictDoc.isSelected());
         settings.setSmartCloseEnd(smartCloseEnd.isSelected());
         settings.setShowWordsInFile(showWordsInFile.isSelected());
-        settings.setEnforceTypeSafety(enforceTypeSafety.isSelected());
         settings.setNilStrict(nilStrict.isSelected());
-        settings.setRecognizeGlobalNameAsType(recognizeGlobalNameAsCheckBox.isSelected());
+        settings.setUnknownIndexable(unknownIndexable.isSelected());
+        settings.setUnknownCallable(unknownCallable.isSelected());
         settings.setAdditionalSourcesRoot(additionalRoots.getRoots());
-        settings.setEnableGeneric(enableGenericCheckBox.isSelected());
         settings.setAttachDebugCaptureOutput(captureOutputDebugString.isSelected());
         settings.setAttachDebugCaptureStd(captureStd.isSelected());
         settings.setAttachDebugDefaultCharsetName((String) Objects.requireNonNull(defaultCharset.getSelectedItem()));

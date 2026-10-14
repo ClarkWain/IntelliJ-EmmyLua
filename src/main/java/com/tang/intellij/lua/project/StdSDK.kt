@@ -16,7 +16,9 @@
 
 package com.tang.intellij.lua.project
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.components.Service
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
@@ -25,7 +27,15 @@ import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
  *
  * Created by tangzx on 2017/2/6.
  */
-class StdSDK {
+@Service
+class StdSDK : Disposable {
+    override fun dispose() {
+        val jdkTable = ProjectJdkTable.getInstance()
+        jdkTable.findJdk(NAME)?.let {
+            ApplicationManager.getApplication().runWriteAction { jdkTable.removeJdk(it) }
+        }
+    }
+
     companion object {
         private const val NAME = "Lua"
 
@@ -33,10 +43,15 @@ class StdSDK {
             val jdkTable = ProjectJdkTable.getInstance()
             //清除旧的std sdk，不用了，用predefined代替
             var value = jdkTable.findJdk(NAME)
+
             if (value == null) {
+                // We instantiate StdSDK as an app service so that when unloaded we remove the SDK type we're about to add.
+                ApplicationManager.getApplication().getService(StdSDK::class.java)
+
                 value = ProjectJdkImpl(NAME, LuaSdkType.instance)
                 ApplicationManager.getApplication().runWriteAction { jdkTable.addJdk(value) }
             }
+
             return value
         }
     }

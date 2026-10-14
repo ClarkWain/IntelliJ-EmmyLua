@@ -8,16 +8,15 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementVisitor;
 import com.intellij.psi.util.PsiTreeUtil;
 import static com.tang.intellij.lua.psi.LuaTypes.*;
-import com.tang.intellij.lua.psi.*;
 import com.tang.intellij.lua.stubs.LuaExprPlaceStub;
+import com.tang.intellij.lua.psi.*;
 import com.intellij.psi.stubs.IStubElementType;
 import com.intellij.psi.tree.IElementType;
-import com.tang.intellij.lua.stubs.LuaExprStub;
 
-public class LuaParenExprImpl extends LuaParenExprMixin implements LuaParenExpr {
+public class LuaParenExprImpl extends LuaExprMixin<LuaExprPlaceStub> implements LuaParenExpr {
 
-  public LuaParenExprImpl(@NotNull LuaExprPlaceStub stub, @NotNull IStubElementType<?, ?> nodeType) {
-    super(stub, nodeType);
+  public LuaParenExprImpl(@NotNull LuaExprPlaceStub stub, @NotNull IStubElementType<?, ?> type) {
+    super(stub, type);
   }
 
   public LuaParenExprImpl(@NotNull ASTNode node) {
@@ -32,6 +31,7 @@ public class LuaParenExprImpl extends LuaParenExprMixin implements LuaParenExpr 
     visitor.visitParenExpr(this);
   }
 
+  @Override
   public void accept(@NotNull PsiElementVisitor visitor) {
     if (visitor instanceof LuaVisitor) accept((LuaVisitor)visitor);
     else super.accept(visitor);
@@ -39,8 +39,8 @@ public class LuaParenExprImpl extends LuaParenExprMixin implements LuaParenExpr 
 
   @Override
   @Nullable
-  public LuaExpr getExpr() {
-    return PsiTreeUtil.getStubChildOfType(this, LuaExpr.class);
+  public LuaExpression<?> getExpression() {
+    return LuaPsiImplUtilKt.getExpression(this);
   }
 
 }

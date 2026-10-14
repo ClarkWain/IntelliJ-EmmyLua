@@ -1,5 +1,6 @@
 <!--
   ~ Copyright (c) 2017. tangzx(love.tangzx@qq.com)
+  ~ Copyright (c) 2020
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -21,11 +22,18 @@
     <depends>com.intellij.modules.lang</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <!-- file template provider -->
         <fileTemplateGroup implementation="com.tang.intellij.lua.actions.LuaFileTemplateProvider"/>
+        <!--<<errorHandler implementation="com.tang.intellij.lua.errorreporting.GitHubErrorReporter"/>-->
+
+        <applicationService serviceImplementation="com.tang.intellij.lua.psi.LuaFileManager"/>
+
+        <projectService serviceImplementation="com.tang.intellij.lua.project.LuaSourceRootManager"/>
+
+        <!--LuaCheck-->
 
         <!--CreateFromTemplate-->
         <createFromTemplateHandler implementation="com.tang.intellij.lua.actions.LuaCreateFromTemplateHandler"/>
+
 
         <!--module and library-->
         <sdkType implementation="com.tang.intellij.lua.project.LuaSdkType"/>
@@ -33,6 +41,8 @@
         <!--<indexedRootsProvider implementation="com.tang.intellij.lua.project.LuaPredefinedLibraryProvider"/>-->
         <additionalLibraryRootsProvider implementation="com.tang.intellij.lua.project.StdLibraryProvider"/>
         <directoryProjectGenerator implementation="com.tang.intellij.lua.project.EmmyLuaDirectoryProjectGenerator"/>
+
+
 
         <!--lang-->
         <lang.foldingBuilder language="Lua" implementationClass="com.tang.intellij.lua.folding.LuaFoldingBuilder"/>
@@ -46,7 +56,7 @@
         <lang.quoteHandler language="Lua" implementationClass="com.tang.intellij.lua.codeInsight.editorActions.LuaQuoteHandler"/>
         <highlightErrorFilter implementation="com.tang.intellij.lua.highlighting.LuaHighlightErrorFilter"/>
         <iconProvider implementation="com.tang.intellij.lua.editor.LuaIconProvider"/>
-        <fileType name="lua" implementationClass="com.tang.intellij.lua.lang.LuaFileType" fieldName="INSTANCE" extensions="lua;lua.txt" language="Lua"/>
+        <fileType name="lua" implementationClass="com.tang.intellij.lua.lang.LuaFileType" fieldName="INSTANCE" language="Lua" extensions="lua;lua.txt;ttslua"/>
         <psi.referenceContributor language="Lua" implementation="com.tang.intellij.lua.reference.LuaReferenceContributor"/>
         <languageInjector implementation="com.tang.intellij.lua.lang.LuaLanguageInjector"/>
 
@@ -69,6 +79,7 @@
 
         <!--navigate-->
         <gotoClassContributor implementation="com.tang.intellij.lua.editor.LuaClassNavigationContributor"/>
+        <gotoClassContributor implementation="com.tang.intellij.lua.editor.LuaAliasNavigationContributor"/>
         <gotoSymbolContributor implementation="com.tang.intellij.lua.editor.LuaSymbolNavigationContributor"/>
         <breadcrumbsInfoProvider implementation="com.tang.intellij.lua.editor.LuaBreadcrumbsProvider"/>
 
@@ -85,15 +96,15 @@
         <highlightVisitor implementation="com.tang.intellij.lua.codeInsight.LuaRainbowVisitor"/>
         <highlightUsagesHandlerFactory implementation="com.tang.intellij.lua.codeInsight.highlighting.LuaHighlightUsagesHandlerFactory"/>
         <readWriteAccessDetector implementation="com.tang.intellij.lua.codeInsight.LuaReadWriteAccessDetector"/>
-        
+
         <!--hierarchy-->
         <callHierarchyProvider language="Lua" implementationClass="com.tang.intellij.lua.hierarchy.call.LuaCallHierarchyProvider"/>
 
         <!--editor handlers-->
         <enterHandlerDelegate implementation="com.tang.intellij.lua.editor.LuaEnterAfterUnmatchedBraceHandler" />
         <enterHandlerDelegate implementation="com.tang.intellij.lua.editor.LuaEnterInDocHandler"/>
-        <enterHandlerDelegate implementation="com.tang.intellij.lua.editor.LuaEnterBetweenRangeBlockHandler"/>
         <enterBetweenBracesDelegate implementationClass="com.tang.intellij.lua.editor.LuaEnterBetweenBracesHandler" language="Lua"/>
+        <enterHandlerDelegate implementation="com.tang.intellij.lua.editor.LuaEnterBetweenRangeBlockHandler"/>
         <backspaceHandlerDelegate implementation="com.tang.intellij.lua.codeInsight.LuaBackspaceHandlerDelegate"/>
         <typedHandler implementation="com.tang.intellij.lua.editor.LuaTypedHandler"/>
         <typedHandler implementation="com.tang.intellij.lua.editor.LuaAutoIndentHandler"/>
@@ -109,8 +120,8 @@
         <additionalTextAttributes scheme="Darcula" file="colorSchemes/Darcula.xml"/>
 
         <!--stub & index-->
-        <stubElementTypeHolder externalIdPrefix="lua" class="com.tang.intellij.lua.psi.LuaTypes" />
-        <stubElementTypeHolder externalIdPrefix="lua-doc" class="com.tang.intellij.lua.comment.psi.LuaDocTypes"/>
+        <stubElementTypeHolder class="com.tang.intellij.lua.psi.LuaTypes" />
+        <stubElementTypeHolder class="com.tang.intellij.lua.comment.psi.LuaDocTypes"/>
         <stubIndex implementation="com.tang.intellij.lua.stubs.index.LuaClassIndex"/>
         <stubIndex implementation="com.tang.intellij.lua.stubs.index.LuaClassMemberIndex"/>
         <stubIndex implementation="com.tang.intellij.lua.stubs.index.LuaShortNameIndex"/>
@@ -138,7 +149,7 @@
 <!--        <xdebugger.attachDebuggerProvider implementation="com.tang.intellij.lua.debugger.emmyAttach.EmmyAttachDebuggerProvider"/>-->
 
         <!--templates-->
-        <defaultLiveTemplates file="/liveTemplates/lua.xml"/>
+        <defaultLiveTemplates file="/liveTemplates/lua"/>
         <liveTemplateContext contextId="LUA_CODE" implementation="com.tang.intellij.lua.codeInsight.template.context.LuaCodeContextType"/>
         <liveTemplateContext contextId="LUA_IF" baseContextId="LUA_CODE" implementation="com.tang.intellij.lua.codeInsight.template.context.LuaIfContextType"/>
         <liveTemplateContext contextId="LUA_FUNCTION" baseContextId="LUA_CODE" implementation="com.tang.intellij.lua.codeInsight.template.context.LuaFunContextType"/>
@@ -160,87 +171,81 @@
 
         <!--intentions-->
         <intentionAction>
-            <language>Lua</language>
             <category>Lua</category>
             <className>com.tang.intellij.lua.codeInsight.intention.CreateParameterAnnotationIntention</className>
             <descriptionDirectoryName>CreateParameterAnnotationIntention</descriptionDirectoryName>
         </intentionAction>
         <intentionAction>
-            <language>Lua</language>
             <category>Lua</category>
             <className>com.tang.intellij.lua.codeInsight.intention.CreateTypeAnnotationIntention</className>
             <descriptionDirectoryName>CreateTypeAnnotationIntention</descriptionDirectoryName>
         </intentionAction>
         <intentionAction>
-            <language>Lua</language>
             <category>Lua</category>
             <className>com.tang.intellij.lua.codeInsight.intention.CreateFunctionReturnAnnotationIntention</className>
             <descriptionDirectoryName>CreateFunctionReturnAnnotationIntention</descriptionDirectoryName>
         </intentionAction>
         <intentionAction>
-            <language>Lua</language>
             <category>Lua</category>
             <className>com.tang.intellij.lua.codeInsight.intention.CreateFunctionDocIntention</className>
             <descriptionDirectoryName>CreateFunctionDocIntention</descriptionDirectoryName>
         </intentionAction>
         <intentionAction>
-            <language>Lua</language>
             <category>Lua</category>
             <className>com.tang.intellij.lua.codeInsight.intention.CreateFieldFromParameterIntention</className>
             <descriptionDirectoryName>CreateFieldFromParameterIntention</descriptionDirectoryName>
         </intentionAction>
         <intentionAction>
-            <language>Lua</language>
             <category>Lua</category>
             <className>com.tang.intellij.lua.codeInsight.intention.CreateMethodIntention</className>
             <descriptionDirectoryName>CreateMethodIntention</descriptionDirectoryName>
         </intentionAction>
         <intentionAction>
-            <language>Lua</language>
             <category>Lua</category>
             <className>com.tang.intellij.lua.codeInsight.intention.AppendCallParenIntention</className>
         </intentionAction>
         <intentionAction>
-            <language>Lua</language>
             <category>Lua</category>
             <className>com.tang.intellij.lua.codeInsight.intention.RemoveCallParenIntention</className>
         </intentionAction>
         <intentionAction>
-            <language>Lua</language>
             <category>Lua</category>
             <className>com.tang.intellij.lua.codeInsight.intention.InvertBooleanIntention</className>
         </intentionAction>
         <intentionAction>
-            <language>Lua</language>
             <category>Lua</category>
             <className>com.tang.intellij.lua.codeInsight.intention.SetVisibilityIntention</className>
         </intentionAction>
         <intentionAction>
-            <language>Lua</language>
             <category>Lua</category>
             <className>com.tang.intellij.lua.codeInsight.intention.ComputeConstantValueIntention</className>
+        </intentionAction>
+        <intentionAction>
+            <category>Lua</category>
+            <className>com.tang.intellij.lua.codeInsight.intention.MakeParameterOptionalIntention</className>
         </intentionAction>
 
         <lang.inspectionSuppressor language="Lua" implementationClass="com.tang.intellij.lua.codeInsight.inspection.LuaSuppressManager"/>
 
         <localInspection
-                implementationClass="com.tang.intellij.lua.codeInsight.inspection.DuplicateClassDeclaration"
-                displayName="Duplicate class"
+                displayName="Duplicate type"
                 enabledByDefault="true"
                 level="ERROR"
                 groupName="Lua"
-                language="Lua"/>
+                language="Lua"
+                implementationClass="com.tang.intellij.lua.codeInsight.inspection.DuplicateTypeDeclaration"/>
         <localInspection
-                implementationClass="com.tang.intellij.lua.codeInsight.inspection.SimplifyLocalAssignment"
                 displayName="Local assign can be simpler"
                 enabledByDefault="true"
                 groupName="Lua"
-                language="Lua"/>
+                language="Lua"
+                implementationClass="com.tang.intellij.lua.codeInsight.inspection.SimplifyLocalAssignment"/>
         <localInspection
                 displayName="Remove unused"
                 enabledByDefault="true"
                 groupName="Lua"
                 language="Lua"
+                runForWholeFile="true"
                 implementationClass="com.tang.intellij.lua.codeInsight.inspection.RemoveUnusedLocal"/>
         <localInspection
                 displayName="Empty body"
@@ -275,34 +280,55 @@
                 implementationClass="com.tang.intellij.lua.codeInsight.inspection.LanguageLevelInspection"/>
         <localInspection
                 displayName="Match function signature"
-                enabledByDefault="false"
+                enabledByDefault="true"
                 groupName="Lua > Lint > Type safety"
+                level="ERROR"
                 language="Lua"
+                runForWholeFile="true"
                 implementationClass="com.tang.intellij.lua.codeInsight.inspection.MatchFunctionSignatureInspection"/>
         <localInspection
                 displayName="Undeclared variable"
-                enabledByDefault="false"
+                enabledByDefault="true"
                 groupName="Lua > Lint > Type safety"
                 language="Lua"
                 implementationClass="com.tang.intellij.lua.codeInsight.inspection.UndeclaredVariableInspection"/>
         <localInspection
-                displayName="Return type"
-                enabledByDefault="false"
+                displayName="Undeclared member"
+                enabledByDefault="true"
                 groupName="Lua > Lint > Type safety"
+                level="ERROR"
                 language="Lua"
+                runForWholeFile="true"
+                implementationClass="com.tang.intellij.lua.codeInsight.inspection.UndeclaredMemberInspection"/>
+        <localInspection
+                displayName="Return type"
+                enabledByDefault="true"
+                groupName="Lua > Lint > Type safety"
+                level="ERROR"
+                language="Lua"
+                runForWholeFile="true"
                 implementationClass="com.tang.intellij.lua.codeInsight.inspection.ReturnTypeInspection"/>
         <localInspection
                 displayName="Assign type"
-                enabledByDefault="false"
+                enabledByDefault="true"
                 groupName="Lua > Lint > Type safety"
+                level="ERROR"
                 language="Lua"
+                runForWholeFile="true"
                 implementationClass="com.tang.intellij.lua.codeInsight.inspection.AssignTypeInspection"/>
+        <localInspection
+                displayName="Illegal override"
+                enabledByDefault="true"
+                groupName="Lua > Lint > Type safety"
+                level="ERROR"
+                language="Lua"
+                implementationClass="com.tang.intellij.lua.codeInsight.inspection.IllegalOverrideInspection"/>
         <localInspection
                 displayName="Global name can be local"
                 enabledByDefault="false"
                 groupName="Lua"
                 language="Lua"
-                implementationClass="com.tang.intellij.lua.codeInsight.inspection.GlobalNameCanbeLocal"/>
+                implementationClass="com.tang.intellij.lua.codeInsight.inspection.GlobalNameCanBeLocal"/>
         <localInspection
                 displayName="Lua deprecation"
                 enabledByDefault="true"
@@ -315,26 +341,65 @@
                 enabledByDefault="true"
                 groupName="Lua > Emmy doc"
                 language="Lua"
-                implementationClass="com.tang.intellij.lua.codeInsight.inspection.doc.UnresolvedSymbolInEmmyDocInspection"/>
+                runForWholeFile="true"
+                implementationClass="com.tang.intellij.lua.codeInsight.inspection.doc.UnresolvedSymbolInspection"/>
 
         <localInspection
                 displayName="Unresolved class in emmy doc"
                 enabledByDefault="true"
                 groupName="Lua > Emmy doc"
                 language="Lua"
-                implementationClass="com.tang.intellij.lua.codeInsight.inspection.doc.UnresolvedClassInspection"/>
-    </extensions>
+                runForWholeFile="true"
+                implementationClass="com.tang.intellij.lua.codeInsight.inspection.doc.UnresolvedTypeInspection"/>
 
-    <applicationListeners>
-        <listener class="com.tang.intellij.lua.psi.LuaFileManager"
-                  topic="com.intellij.openapi.fileTypes.FileTypeListener"/>
-    </applicationListeners>
+        <localInspection
+                displayName="Illegal alias in emmy doc"
+                enabledByDefault="true"
+                groupName="Lua > Emmy doc"
+                level="ERROR"
+                language="Lua"
+                runForWholeFile="true"
+                implementationClass="com.tang.intellij.lua.codeInsight.inspection.doc.IllegalAliasInspection"/>
+
+        <localInspection
+                displayName="Illegal inheritance in emmy doc"
+                enabledByDefault="true"
+                groupName="Lua > Emmy doc"
+                level="ERROR"
+                language="Lua"
+                runForWholeFile="true"
+                implementationClass="com.tang.intellij.lua.codeInsight.inspection.doc.IllegalInheritanceInspection"/>
+
+        <localInspection
+                displayName="Generic constraint type mismatch in emmy doc"
+                enabledByDefault="true"
+                groupName="Lua > Emmy doc"
+                language="Lua"
+                runForWholeFile="true"
+                implementationClass="com.tang.intellij.lua.codeInsight.inspection.doc.GenericConstraintInspection"/>
+
+        <localInspection
+                displayName="Generic parameter shadowed"
+                enabledByDefault="true"
+                groupName="Lua > Emmy doc"
+                language="Lua"
+                implementationClass="com.tang.intellij.lua.codeInsight.inspection.doc.GenericParameterShadowed"/>
+
+        <localInspection
+                displayName="Required parameter after optional parameter"
+                enabledByDefault="true"
+                groupName="Lua > Emmy doc"
+                level="ERROR"
+                language="Lua"
+                runForWholeFile="true"
+                implementationClass="com.tang.intellij.lua.codeInsight.inspection.doc.RequiredParameterInspection"/>
+    </extensions>
 
     <actions>
         <group id="LuaCallHierarchyPopupMenu">
             <reference ref="EditSource"/>
         </group>
-        
+
         <action class="com.tang.intellij.lua.actions.CreateLuaFileAction"
                 text="Lua File"
                 id="lua.newFile">
@@ -349,13 +414,13 @@
     </actions>
 
     <extensionPoints>
-        <extensionPoint qualifiedName="com.tang.intellij.lua.luaClassInheritorsSearch" interface="com.intellij.util.QueryExecutor"/>
-        <extensionPoint qualifiedName="com.tang.intellij.lua.luaAllClassesSearch" interface="com.intellij.util.QueryExecutor"/>
-        <extensionPoint qualifiedName="com.tang.intellij.lua.luaOverridingMethodsSearch" interface="com.intellij.util.QueryExecutor"/>
-        <extensionPoint qualifiedName="com.tang.intellij.lua.luaOverridenMethodsSearch" interface="com.intellij.util.QueryExecutor"/>
-        <extensionPoint qualifiedName="com.tang.intellij.lua.luaFileResolver" interface="com.tang.intellij.lua.ext.ILuaFileResolver"/>
-        <extensionPoint qualifiedName="com.tang.intellij.lua.luaTypeInfer" interface="com.tang.intellij.lua.ext.ILuaTypeInfer"/>
-        <extensionPoint qualifiedName="com.tang.intellij.lua.luaShortNamesManager" interface="com.tang.intellij.lua.psi.search.LuaShortNamesManager"/>
+        <extensionPoint qualifiedName="com.tang.intellij.lua.luaClassInheritorsSearch" interface="com.intellij.util.QueryExecutor" dynamic="true"/>
+        <extensionPoint qualifiedName="com.tang.intellij.lua.luaAllClassesSearch" interface="com.intellij.util.QueryExecutor" dynamic="true"/>
+        <extensionPoint qualifiedName="com.tang.intellij.lua.luaOverridingMethodsSearch" interface="com.intellij.util.QueryExecutor" dynamic="true"/>
+        <extensionPoint qualifiedName="com.tang.intellij.lua.luaOverridenMethodsSearch" interface="com.intellij.util.QueryExecutor" dynamic="true"/>
+        <extensionPoint qualifiedName="com.tang.intellij.lua.luaFileResolver" interface="com.tang.intellij.lua.ext.ILuaFileResolver" dynamic="true"/>
+        <extensionPoint qualifiedName="com.tang.intellij.lua.luaTypeInfer" interface="com.tang.intellij.lua.ext.ILuaTypeInfer" dynamic="true"/>
+        <extensionPoint qualifiedName="com.tang.intellij.lua.luaShortNamesManager" interface="com.tang.intellij.lua.psi.search.LuaShortNamesManager" dynamic="true"/>
     </extensionPoints>
 
     <extensions defaultExtensionNs="com.tang.intellij.lua">

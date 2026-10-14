@@ -32,19 +32,6 @@ class LuaReferenceContributor : PsiReferenceContributor() {
         psiReferenceRegistrar.registerReferenceProvider(psiElement().withElementType(LuaTypes.INDEX_EXPR), IndexExprReferenceProvider())
         psiReferenceRegistrar.registerReferenceProvider(psiElement().withElementType(LuaTypes.NAME_EXPR), NameReferenceProvider())
         psiReferenceRegistrar.registerReferenceProvider(psiElement().withElementType(LuaTypes.GOTO_STAT), GotoReferenceProvider())
-        psiReferenceRegistrar.registerReferenceProvider(psiElement().withElementType(LuaTypes.FUNC_DEF), FuncReferenceProvider())
-    }
-
-    internal inner class FuncReferenceProvider : PsiReferenceProvider() {
-        override fun getReferencesByElement(psiElement: PsiElement, processingContext: ProcessingContext): Array<PsiReference> {
-            if (psiElement is LuaFuncDef) {
-                val forwardDeclaration = psiElement.forwardDeclaration
-                if (forwardDeclaration != null) {
-                    return arrayOf(LuaFuncForwardDecReference(psiElement, forwardDeclaration))
-                }
-            }
-            return PsiReference.EMPTY_ARRAY
-        }
     }
 
     internal inner class GotoReferenceProvider : PsiReferenceProvider() {
@@ -59,7 +46,7 @@ class LuaReferenceContributor : PsiReferenceContributor() {
 
         override fun getReferencesByElement(psiElement: PsiElement, processingContext: ProcessingContext): Array<PsiReference> {
             val expr = psiElement as LuaCallExpr
-            val nameRef = expr.expr
+            val nameRef = expr.expression
             if (nameRef is LuaNameExpr) {
                 if (LuaSettings.isRequireLikeFunctionName(nameRef.getText())) {
                     return arrayOf(LuaRequireReference(expr))
@@ -77,8 +64,8 @@ class LuaReferenceContributor : PsiReferenceContributor() {
             if (id != null) {
                 return arrayOf(LuaIndexReference(indexExpr, id))
             }
-            val idExpr = indexExpr.idExpr
-            return if (idExpr != null) {
+            val idExpr = indexExpr.idExpr as? LuaLiteralExpr
+            return if (idExpr != null && idExpr.kind == LuaLiteralKind.String) {
                 arrayOf(LuaIndexBracketReference(indexExpr, idExpr))
             } else PsiReference.EMPTY_ARRAY
         }

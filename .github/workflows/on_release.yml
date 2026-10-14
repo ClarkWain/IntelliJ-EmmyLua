@@ -49,7 +49,7 @@ jobs:
         run: |
           export JAVA_HOME="$JAVA_HOME_21_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
-          ./gradlew publishPlugin
+          ./gradlew publishPlugin -DIDEA_VER=2026.2 --no-configuration-cache
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4.6.2

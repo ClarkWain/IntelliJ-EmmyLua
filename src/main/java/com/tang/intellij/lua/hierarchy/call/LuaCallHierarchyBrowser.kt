@@ -26,6 +26,7 @@ import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.psi.PsiElement
 import com.intellij.ui.PopupHandler
+import java.util.*
 import javax.swing.JTree
 
 class LuaCallHierarchyBrowser(element: PsiElement) : CallHierarchyBrowserBase(element.project, element) {
@@ -51,20 +52,20 @@ class LuaCallHierarchyBrowser(element: PsiElement) : CallHierarchyBrowserBase(el
         return tree
     }
 
-    override fun createTrees(trees: CreateTreesMap) {
+    override fun createTrees(trees: MutableMap<in String, in JTree>) {
         val group = ActionManager.getInstance().getAction(GROUP_LUA_CALL_HIERARCHY_POPUP) as ActionGroup
 
         val callerTree = createHierarchyTree(group)
         val calleeTree = createHierarchyTree(group)
 
         trees[getCallerType()] = callerTree
-        trees[getCallerType()] = calleeTree
+        trees[getCalleeType()] = calleeTree
     }
 
     override fun createHierarchyTreeStructure(typeName: String, psiElement: PsiElement): HierarchyTreeStructure? =
             when (typeName) {
                 getCallerType() -> LuaCallerFunctionTreeStructure(myProject, psiElement)
-                getCallerType() -> LuaCalleeFunctionTreeStructure(myProject, psiElement)
+                getCalleeType() -> LuaCalleeFunctionTreeStructure(myProject, psiElement)
                 else -> null
             }
 }

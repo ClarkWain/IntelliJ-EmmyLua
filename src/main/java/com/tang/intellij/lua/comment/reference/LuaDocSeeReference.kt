@@ -23,8 +23,8 @@ import com.intellij.psi.PsiPolyVariantReferenceBase
 import com.intellij.psi.ResolveResult
 import com.tang.intellij.lua.comment.psi.LuaDocTagSee
 import com.tang.intellij.lua.psi.LuaElementFactory
-import com.tang.intellij.lua.psi.search.LuaShortNamesManager
 import com.tang.intellij.lua.search.SearchContext
+import com.tang.intellij.lua.stubs.index.LuaClassMemberIndex
 import com.tang.intellij.lua.ty.ITyClass
 
 class LuaDocSeeReference(see: LuaDocTagSee) :
@@ -38,7 +38,7 @@ class LuaDocSeeReference(see: LuaDocTagSee) :
     }
 
     override fun handleElementRename(newElementName: String): PsiElement {
-        val id = LuaElementFactory.createDocIdentifier(myElement.project, newElementName)
+        val id = LuaElementFactory.createDocTagField(myElement.project, newElementName)
         this.id.replace(id)
         return id
     }
@@ -47,11 +47,12 @@ class LuaDocSeeReference(see: LuaDocTagSee) :
 
     override fun multiResolve(incomplete: Boolean): Array<ResolveResult> {
         val list = mutableListOf<ResolveResult>()
-        val type = myElement.classNameRef?.resolveType() as ITyClass
-        LuaShortNamesManager.getInstance(myElement.project).processMembers(type.className, id.text, SearchContext.get(myElement.project), {
-            list.add(PsiElementResolveResult(it))
+        val searchContext = SearchContext.get(myElement.project)
+        val type = myElement.typeRef?.resolveType(searchContext) as ITyClass
+        LuaClassMemberIndex.processMember(searchContext, type, id.text, true, true, null) { _, member ->
+            list.add(PsiElementResolveResult(member))
             true
-        })
+        }
         return list.toTypedArray()
     }
 }

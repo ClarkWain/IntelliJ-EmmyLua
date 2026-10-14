@@ -21,8 +21,10 @@ import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.Annotator
 import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.util.Key
+import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.tang.intellij.lua.Constants
+import com.tang.intellij.lua.codeInsight.intention.MakeParameterOptionalIntention
 import com.tang.intellij.lua.comment.psi.*
 import com.tang.intellij.lua.highlighting.LuaHighlightingData
 import com.tang.intellij.lua.psi.*
@@ -40,7 +42,6 @@ class LuaAnnotator : Annotator {
 
     companion object {
         private val STD_MARKER = Key.create<Boolean>("lua.std.marker")
-        private val UPVALUE = HighlightSeverity("UPVALUE", HighlightSeverity.INFORMATION.myVal + 1)
     }
 
     override fun annotate(psiElement: PsiElement, annotationHolder: AnnotationHolder) {
@@ -49,242 +50,275 @@ class LuaAnnotator : Annotator {
             psiElement.accept(docVisitor)
         } else if (psiElement is LuaPsiElement) {
             val psiFile = psiElement.containingFile
-            isModuleFile = if (psiFile is LuaPsiFile) { psiFile.moduleName != null } else false
+            isModuleFile = (psiFile as? LuaPsiFile)?.let {
+                psiFile.getModuleName(SearchContext.get(psiFile.project))
+            } != null
             psiElement.accept(luaVisitor)
         }
         myHolder = null
     }
 
-    private inline fun newAnnotation(severity: HighlightSeverity, psi: PsiElement, msg: String?, action: (builder: AnnotationBuilder) -> Unit) {
-        val builder = if (msg == null) myHolder?.newSilentAnnotation(severity) else myHolder?.newAnnotation(severity, msg)
-        builder?.apply {
-            range(psi)
-            action(this)
-            create()
+    private fun createInfoAnnotation(psi: PsiElement, msg: String? = null): AnnotationBuilder {
+        val builder = if (msg != null) {
+            myHolder!!.newAnnotation(HighlightSeverity.INFORMATION, msg)
+        } else {
+            myHolder!!.newSilentAnnotation(HighlightSeverity.INFORMATION)
         }
-    }
 
-    private inline fun newInfoAnnotation(psi: PsiElement, msg: String?, action: (builder: AnnotationBuilder) -> Unit) {
-        newAnnotation(HighlightSeverity.INFORMATION, psi, msg, action)
+        return builder.range(psi)
     }
 
     internal inner class LuaElementVisitor : LuaVisitor() {
 
         override fun visitExprStat(o: LuaExprStat) {
-            if (o.expr !is LuaCallExpr) {
+            if (o.expression !is LuaCallExpr) {
                 if (o.containingFile !is LuaExprCodeFragment) {
-                    newAnnotation(HighlightSeverity.ERROR, o, "syntax error") {}
+                    myHolder!!.newAnnotation(HighlightSeverity.ERROR, "syntax error").range(o).create()
                 }
-            } else super.visitExprStat(o)
+            } else {
+                super.visitExprStat(o)
+            }
         }
 
-        override fun visitLocalFuncDef(o: LuaLocalFuncDef) {
+        override fun visitLocalFuncDefStat(o: LuaLocalFuncDefStat) {
             val name = o.nameIdentifier
 
             if (name != null) {
-                newInfoAnnotation(name, "Local function \"${o.name}\"") {
-                    it.textAttributes(LuaHighlightingData.LOCAL_FUNCTION)
-                }
+                createInfoAnnotation(name, "Local function \"${o.name}\"")
+                        .textAttributes(LuaHighlightingData.LOCAL_VAR)
+                        .create()
             }
         }
 
         override fun visitLocalDef(o: LuaLocalDef) {
-            val nameList = o.nameList
-            if (nameList != null) {
-                var child: PsiElement? = nameList.firstChild
-                while (child != null) {
-                    if (child is LuaNameDef) {
-                        newInfoAnnotation(child, "Local variable \"${child.name}\"") {
-                            it.textAttributes(LuaHighlightingData.LOCAL_VAR)
-                        }
-                    }
-                    child = child.nextSibling
+            createInfoAnnotation(o, "Local variable \"${o.name}\"")
+                    .textAttributes(LuaHighlightingData.LOCAL_VAR)
+                    .create()
+
+            arrayOf(o.close, o.const).forEach {
+                if (it != null) {
+                    myHolder!!.newSilentAnnotation(HighlightSeverity.INFORMATION)
+                            .range(it)
+                            .textAttributes(LuaHighlightingData.KEYWORD)
+                            .create()
                 }
             }
-            super.visitLocalDef(o)
         }
 
         override fun visitTableField(o: LuaTableField) {
             super.visitTableField(o)
+
             val id = o.id
             if (id != null) {
-                newInfoAnnotation(id, null) {
-                    it.textAttributes(LuaHighlightingData.FIELD)
-                }
+                createInfoAnnotation(id)
+                        .textAttributes(LuaHighlightingData.FIELD)
+                        .create()
             }
         }
 
-        override fun visitFuncDef(o: LuaFuncDef) {
-            val name = o.nameIdentifier
-            if (name != null && o.forwardDeclaration == null) {
-                if (isModuleFile) {
-                    newInfoAnnotation(name, "Module function \"${o.name}\"") {
-                        it.textAttributes(LuaHighlightingData.INSTANCE_METHOD)
-                    }
-                } else {
-                    newInfoAnnotation(name, "Global function \"${o.name}\"") {
-                        it.textAttributes(LuaHighlightingData.GLOBAL_FUNCTION)
-                    }
-                }
+        override fun visitFuncDefStat(o: LuaFuncDefStat) {
+            val name = o.nameIdentifier ?: return
+
+            if (isModuleFile) {
+                createInfoAnnotation(name, "Module function \"${o.name}\"")
+                        .textAttributes(LuaHighlightingData.INSTANCE_METHOD)
+                        .create()
+            } else {
+                createInfoAnnotation(name, "Global function \"${o.name}\"")
+                        .textAttributes(LuaHighlightingData.GLOBAL_FUNCTION)
+                        .create()
             }
         }
 
         override fun visitClassMethodName(o: LuaClassMethodName) {
             val id = o.id ?: return
-            newInfoAnnotation(id, null) {
-                if (o.dot != null) {
-                    it.textAttributes(LuaHighlightingData.STATIC_METHOD)
-                } else {
-                    it.textAttributes(LuaHighlightingData.INSTANCE_METHOD)
-                }
+            val textAttributes = if (o.dot != null) {
+                LuaHighlightingData.STATIC_METHOD
+            } else {
+                LuaHighlightingData.INSTANCE_METHOD
             }
-        }
-
-        override fun visitParamNameDef(o: LuaParamNameDef) {
-            newInfoAnnotation(o, "Parameter : \"${o.name}\"") {
-                it.textAttributes(LuaHighlightingData.PARAMETER)
-            }
+            createInfoAnnotation(id)
+                    .textAttributes(textAttributes)
+                    .create()
         }
 
         override fun visitNameExpr(o: LuaNameExpr) {
-            val id = o.firstChild
+            val id = o.id
 
-            val res = resolve(o, SearchContext.get(o.project))
+            val context = SearchContext.get(o.project)
+            val res = resolve(context, o)
+
             if (res != null) { //std api highlighting
                 val containingFile = res.containingFile
                 if (LuaFileUtil.isStdLibFile(containingFile.virtualFile, o.project)) {
-                    newInfoAnnotation(o, "Std apis") {
-                        it.textAttributes(LuaHighlightingData.STD_API)
-                    }
+                    createInfoAnnotation(id, "Std apis")
+                            .textAttributes(LuaHighlightingData.STD_API)
+                            .create()
                     o.putUserData(STD_MARKER, true)
                     return
                 }
             }
 
-            if (res is LuaParamNameDef) {
-                newInfoAnnotation(o, "Parameter : \"${res.name}\"") {
-                    it.textAttributes(LuaHighlightingData.PARAMETER)
+            if (res is LuaParamDef) {
+                if (!checkUpValue(o)) {
+                    createInfoAnnotation(id, "Parameter : \"${res.name}\"")
+                            .textAttributes(LuaHighlightingData.PARAMETER)
+                            .create()
                 }
-                checkUpValue(o)
-            } else if (res is LuaFuncDef) {
+            } else if (res is LuaFuncDefStat) {
                 val resolvedFile = res.containingFile
-                if (resolvedFile !is LuaPsiFile || resolvedFile.moduleName == null) {
-                    newInfoAnnotation(o, "Global function : \"${res.name}\"") {
-                        it.textAttributes(LuaHighlightingData.GLOBAL_FUNCTION)
-                    }
+                if (resolvedFile !is LuaPsiFile || resolvedFile.getModuleName(context) == null) {
+                    createInfoAnnotation(id, "Global function : \"${res.name}\"")
+                            .textAttributes(LuaHighlightingData.GLOBAL_FUNCTION)
+                            .create()
                 } else {
-                    newInfoAnnotation(o, "Module function : \"${res.name}\"") {}
+                    createInfoAnnotation(id, "Module function : \"${res.name}\"")
                 }
             } else {
                 if (id.textMatches(Constants.WORD_SELF)) {
-                    newInfoAnnotation(o, null) {
-                        it.textAttributes(LuaHighlightingData.SELF)
+                    if (!checkUpValue(o)) {
+                        createInfoAnnotation(id)
+                                .textAttributes(LuaHighlightingData.SELF)
+                                .create()
                     }
-                    checkUpValue(o)
-                } else if (res is LuaNameDef) {
-                    newInfoAnnotation(o, "Local variable \"${o.name}\"") {
-                        it.textAttributes(LuaHighlightingData.LOCAL_VAR)
+                } else if (res is LuaLocalDef) {
+                    if (!checkUpValue(o)) {
+                        createInfoAnnotation(id, "Local variable \"${o.name}\"")
+                                .textAttributes(LuaHighlightingData.LOCAL_VAR)
+                                .create()
                     }
-                    checkUpValue(o)
-                } else if (res is LuaLocalFuncDef) {
-                    newInfoAnnotation(o, "Local function \"${o.name}\"") {
-                        it.textAttributes(LuaHighlightingData.LOCAL_FUNCTION)
+                } else if (res is LuaLocalFuncDefStat) {
+                    if (!checkUpValue(o)) {
+                        createInfoAnnotation(id, "Local function \"${o.name}\"")
+                                .textAttributes(LuaHighlightingData.LOCAL_VAR)
+                                .create()
                     }
-                    checkUpValue(o)
                 } else {
                     if (isModuleFile) {
-                        newInfoAnnotation(o, "Module field \"${o.name}\"") {
-                            it.textAttributes(LuaHighlightingData.FIELD)
-                        }
+                        createInfoAnnotation(id, "Module field \"${o.name}\"")
+                                .textAttributes(LuaHighlightingData.FIELD)
+                                .create()
                     } else {
-                        newInfoAnnotation(o, "Global variable \"${o.name}\"") {
-                            it.textAttributes(LuaHighlightingData.GLOBAL_VAR)
-                        }
+                        createInfoAnnotation(id, "Global variable \"${o.name}\"")
+                                .textAttributes(LuaHighlightingData.GLOBAL_VAR)
+                                .create()
                     }
                 }
             }
         }
 
-        private fun checkUpValue(o: LuaNameExpr) {
-            val upValue = isUpValue(o, SearchContext.get(o.project))
+        private fun checkUpValue(o: LuaNameExpr): Boolean {
+            val upValue = isUpValue(SearchContext.get(o.project), o)
             if (upValue) {
-                newAnnotation(UPVALUE, o, "Up-value \"${o.name}\"") {
-                    it.textAttributes(LuaHighlightingData.UP_VALUE)
-                }
+                myHolder?.newAnnotation(HighlightSeverity.INFORMATION, "Up-value \"${o.name}\"")
+                        ?.range(o.id.textRange)
+                        ?.textAttributes(LuaHighlightingData.UP_VALUE)
+                        ?.create()
             }
+            return upValue
         }
 
         override fun visitIndexExpr(o: LuaIndexExpr) {
             super.visitIndexExpr(o)
-            val prefix = o.prefixExpr
+            val prefix = o.prefixExpression
             if (prefix is LuaNameExpr && prefix.getUserData(STD_MARKER) != null) {
-                newInfoAnnotation(o, "Std apis") {
-                    it.textAttributes(LuaHighlightingData.STD_API)
-                }
+                createInfoAnnotation(o, "Std apis")
+                        .textAttributes(LuaHighlightingData.STD_API)
+                        .create()
                 o.putUserData(STD_MARKER, true)
             } else {
                 val id = o.id
                 if (id != null) {
+                    val builder = createInfoAnnotation(id, null)
                     if (o.parent is LuaCallExpr) {
                         if (o.colon != null) {
-                            newInfoAnnotation(id, null) {
-                                it.textAttributes(LuaHighlightingData.INSTANCE_METHOD)
-                            }
+                            builder.textAttributes(LuaHighlightingData.INSTANCE_METHOD)
                         } else {
-                            newInfoAnnotation(id, null) {
-                                it.textAttributes(LuaHighlightingData.STATIC_METHOD)
-                            }
+                            builder.textAttributes(LuaHighlightingData.STATIC_METHOD)
                         }
                     } else {
                         if (o.colon != null) {
-                            newAnnotation(HighlightSeverity.ERROR, o, "Arguments expected") {
-                            }
+                            myHolder!!.newAnnotation(HighlightSeverity.ERROR, "Arguments expected")
+                                    .range(o)
+                                    .create()
                         } else {
-                            newInfoAnnotation(id, null) {
-                                it.textAttributes(LuaHighlightingData.FIELD)
-                            }
+                            builder.textAttributes(LuaHighlightingData.FIELD)
                         }
                     }
+                    builder.create()
                 }
             }
         }
     }
 
     internal inner class LuaDocElementVisitor : LuaDocVisitor() {
+        override fun visitGenericTableTy(o: LuaDocGenericTableTy) {
+            super.visitGenericTableTy(o)
+            val psiTextOffset = o.textOffset
+            myHolder!!.newSilentAnnotation(HighlightSeverity.INFORMATION)
+                    .range(TextRange(psiTextOffset, psiTextOffset + 5)) // 5 == "table".length
+                    .textAttributes(LuaHighlightingData.TYPE_REFERENCE)
+                    .create()
+        }
+
         override fun visitTagClass(o: LuaDocTagClass) {
             super.visitTagClass(o)
-            newInfoAnnotation(o.id, null) {
-                it.textAttributes(LuaHighlightingData.CLASS_NAME)
-            }
+            createInfoAnnotation(o.id, null)
+                    .textAttributes(LuaHighlightingData.CLASS_NAME)
+                    .create()
         }
 
         override fun visitTagAlias(o: LuaDocTagAlias) {
             super.visitTagAlias(o)
-            val id = o.id ?: return
-            newInfoAnnotation(id, null) {
-                it.textAttributes(LuaHighlightingData.TYPE_ALIAS)
-            }
+            val id = o.id
+            createInfoAnnotation(id, null)
+                    .textAttributes(LuaHighlightingData.TYPE_ALIAS)
+                    .create()
         }
 
-        override fun visitClassNameRef(o: LuaDocClassNameRef) {
-            newInfoAnnotation(o, null) {
-                it.textAttributes(LuaHighlightingData.CLASS_REFERENCE)
-            }
+        override fun visitTypeRef(o: LuaDocTypeRef) {
+            createInfoAnnotation(o, null)
+                    .textAttributes(LuaHighlightingData.TYPE_REFERENCE)
+                    .create()
         }
 
         override fun visitTagField(o: LuaDocTagField) {
             super.visitTagField(o)
             val id = o.nameIdentifier
             if (id != null) {
-                newInfoAnnotation(id, null) {
-                    it.textAttributes(LuaHighlightingData.DOC_COMMENT_TAG_VALUE)
-                }
+                createInfoAnnotation(id, null)
+                        .textAttributes(LuaHighlightingData.DOC_COMMENT_TAG_VALUE)
+                        .create()
             }
         }
 
         override fun visitParamNameRef(o: LuaDocParamNameRef) {
-            newInfoAnnotation(o, null) {
-                it.textAttributes(LuaHighlightingData.DOC_COMMENT_TAG_VALUE)
+            createInfoAnnotation(o, null)
+                    .textAttributes(LuaHighlightingData.DOC_COMMENT_TAG_VALUE)
+                    .create()
+        }
+
+        override fun visitPrimitiveTableTy(o: LuaDocPrimitiveTableTy) {
+            createInfoAnnotation(o, null)
+                    .textAttributes(LuaHighlightingData.TYPE_REFERENCE)
+                    .create()
+        }
+
+        override fun visitFunctionParams(o: LuaDocFunctionParams) {
+            var encounteredOptional = false
+
+            o.functionParamList.forEach { param ->
+                if (encounteredOptional) {
+                    if (param.optional == null) {
+                        myHolder!!
+                            .newAnnotation(HighlightSeverity.ERROR, "Required parameters cannot follow optional parameters")
+                            .range(param)
+                            .withFix(MakeParameterOptionalIntention())
+                            .create()
+                    }
+                } else if (param.optional != null) {
+                    encounteredOptional = true
+                }
             }
         }
     }

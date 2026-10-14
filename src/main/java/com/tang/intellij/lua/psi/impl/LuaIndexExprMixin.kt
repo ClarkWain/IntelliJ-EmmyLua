@@ -17,9 +17,11 @@
 package com.tang.intellij.lua.psi.impl
 
 import com.intellij.lang.ASTNode
+import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.PsiReference
 import com.intellij.psi.stubs.IStubElementType
 import com.intellij.psi.tree.IElementType
+import com.intellij.psi.util.PsiTreeUtil
 import com.tang.intellij.lua.comment.psi.LuaDocAccessModifier
 import com.tang.intellij.lua.comment.psi.api.LuaComment
 import com.tang.intellij.lua.psi.*
@@ -29,7 +31,8 @@ import com.tang.intellij.lua.stubs.LuaIndexExprStub
 
  * Created by TangZX on 2017/4/12.
  */
-abstract class LuaIndexExprMixin : LuaExprStubMixin<LuaIndexExprStub>, LuaExpr, LuaClassField {
+@Suppress("CONFLICTING_INHERITED_JVM_DECLARATIONS") // Refer to TypeMember `val name`
+abstract class LuaIndexExprMixin : LuaExprMixin<LuaIndexExprStub>, LuaTypeField, PsiNamedElement {
 
     internal constructor(stub: LuaIndexExprStub, nodeType: IStubElementType<*, *>) : super(stub, nodeType)
 
@@ -48,24 +51,25 @@ abstract class LuaIndexExprMixin : LuaExprStubMixin<LuaIndexExprStub>, LuaExpr, 
      *
      * get comment for `field`
      */
-    val comment: LuaComment? get() {
-        val p = parent
-        if (p is LuaVarList) {
-            val stat = p.parent as LuaStatement
-            return stat.comment
+    override val comment: LuaComment?
+        get() {
+            val p = parent
+            if (p is LuaVarList) {
+                val stat = p.parent as LuaStatement
+                return stat.comment
+            }
+            return super<LuaExprMixin>.comment
         }
-        return null
-    }
 
     override val visibility: Visibility get() {
         val stub = this.stub
         if (stub != null)
             return stub.visibility
-        return comment?.findTag(LuaDocAccessModifier::class.java)?.let {
-            Visibility.get(it.text)
+        return comment?.let { comment ->
+            PsiTreeUtil.getChildOfType(comment, LuaDocAccessModifier::class.java)?.let {
+                Visibility.get(it.text)
+            }
         } ?: Visibility.PUBLIC
     }
 
-    override val worth: Int
-        get() = LuaClassMember.WORTH_ASSIGN
 }

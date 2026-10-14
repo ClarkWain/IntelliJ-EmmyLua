@@ -31,8 +31,7 @@ class LuaBinaryExprType : LuaStubElementType<LuaBinaryExprStub, LuaBinaryExpr>("
     }
 
     override fun createStub(expr: LuaBinaryExpr, parent: StubElement<*>?): LuaBinaryExprStub {
-        val type = expr.binaryOp.firstChild.node.elementType
-        val indexOf = LuaElementTypes.BINARY_OPS.indexOf(type)
+        val indexOf = LuaElementTypes.BINARY_OPS.indexOf(expr.operationType)
         return LuaBinaryExprStub(indexOf, parent)
     }
 
@@ -53,6 +52,6 @@ class LuaBinaryExprType : LuaStubElementType<LuaBinaryExprStub, LuaBinaryExpr>("
 class LuaBinaryExprStub(
         val op: Int,
         parent: StubElement<*>?
-) : LuaStubBase<LuaBinaryExpr>(parent, LuaElementTypes.BINARY_EXPR), LuaExprStub<LuaBinaryExpr> {
-    val opType: IElementType? get() = LuaElementTypes.BINARY_OPS.getOrNull(op)
+) : LuaExprStub<LuaBinaryExpr>(parent, LuaElementTypes.BINARY_EXPR) {
+    val opType: IElementType get() = LuaElementTypes.BINARY_OPS[op]
 }

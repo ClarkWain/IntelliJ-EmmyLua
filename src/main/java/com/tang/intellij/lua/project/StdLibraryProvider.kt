@@ -19,7 +19,6 @@ package com.tang.intellij.lua.project
 import com.intellij.navigation.ItemPresentation
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.project.RootsChangeRescanningInfo
 import com.intellij.openapi.project.ex.ProjectManagerEx
 import com.intellij.openapi.roots.AdditionalLibraryRootsProvider
 import com.intellij.openapi.roots.SyntheticLibrary
@@ -28,6 +27,8 @@ import com.intellij.openapi.util.EmptyRunnable
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.stubs.StubIndex
+import com.intellij.util.PathUtil
+import com.intellij.util.io.URLUtil
 import com.tang.intellij.lua.lang.LuaIcons
 import com.tang.intellij.lua.lang.LuaLanguageLevel
 import com.tang.intellij.lua.psi.LuaFileUtil
@@ -37,24 +38,43 @@ import javax.swing.Icon
 class StdLibraryProvider: AdditionalLibraryRootsProvider() {
     override fun getAdditionalProjectLibraries(project: Project): Collection<StdLibrary> {
         val level = LuaSettings.instance.languageLevel
-        val std = LuaFileUtil.getPluginVirtualFile("std/Lua${level.version}") ?: return emptyList()
-        val dir = VfsUtil.findFileByIoFile(File(std), true) ?: return emptyList()
+        val std = "std/Lua${level.version}"
+        val cls = StdLibraryProvider::class.java
+        val jarPath = PathUtil.getJarPathForClass(cls)
+        var dir: VirtualFile?
 
-        dir.children.forEach {
-            it.putUserData(LuaFileUtil.PREDEFINED_KEY, true)
+        if (jarPath.endsWith(".jar")) {
+            dir = VfsUtil.findFileByURL(URLUtil.getJarEntryURL(File(jarPath), std))
+        } else {
+            dir = VfsUtil.findFileByIoFile(File("$jarPath/$std"), true)
+
+            if (dir == null) {
+                val resourceUrl = cls.classLoader.getResource(std)
+
+                if (resourceUrl != null) {
+                    dir = VfsUtil.findFileByURL(resourceUrl)
+                }
+            }
         }
-        return listOf(StdLibrary(level, dir))
+
+        if (dir != null) {
+            dir.children.forEach {
+                it.putUserData(LuaFileUtil.PREDEFINED_KEY, true)
+            }
+            return listOf(StdLibrary(level, dir))
+        }
+        return emptyList()
     }
 
     companion object {
         fun reload() {
+            StubIndex.getInstance().forceRebuild(Throwable("Lua language level changed."))
+
             WriteAction.run<RuntimeException> {
                 val projects = ProjectManagerEx.getInstanceEx().openProjects
                 for (project in projects) {
-                    ProjectRootManagerEx.getInstanceEx(project).makeRootsChange(EmptyRunnable.getInstance(), RootsChangeRescanningInfo.RESCAN_DEPENDENCIES_IF_NEEDED)
+                    ProjectRootManagerEx.getInstanceEx(project).makeRootsChange(EmptyRunnable.getInstance(), false, true)
                 }
-
-                StubIndex.getInstance().forceRebuild(Throwable("Lua language level changed."))
             }
         }
     }

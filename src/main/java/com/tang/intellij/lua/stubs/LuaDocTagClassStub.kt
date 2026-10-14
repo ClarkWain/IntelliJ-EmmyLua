@@ -25,9 +25,9 @@ import com.tang.intellij.lua.comment.psi.LuaDocTagClass
 import com.tang.intellij.lua.comment.psi.impl.LuaDocTagClassImpl
 import com.tang.intellij.lua.psi.LuaElementType
 import com.tang.intellij.lua.psi.aliasName
+import com.tang.intellij.lua.psi.overloads
 import com.tang.intellij.lua.stubs.index.StubKeys
-import com.tang.intellij.lua.ty.TyClass
-import com.tang.intellij.lua.ty.createSerializedClass
+import com.tang.intellij.lua.ty.*
 
 /**
 
@@ -40,29 +40,38 @@ class LuaDocTagClassType : LuaStubElementType<LuaDocTagClassStub, LuaDocTagClass
     }
 
     override fun createStub(luaDocTagClass: LuaDocTagClass, stubElement: StubElement<*>): LuaDocTagClassStub {
-        val superClassNameRef = luaDocTagClass.superClassNameRef
-        val superClassName = superClassNameRef?.text
+        val params = luaDocTagClass.genericDefList.map { TyGenericParameter(it) }.toTypedArray()
+        val superClass = luaDocTagClass.superClass?.getType()
+        val signatures = luaDocTagClass.overloads
         val aliasName: String? = luaDocTagClass.aliasName
-
-        return LuaDocTagClassStubImpl(luaDocTagClass.name, aliasName, superClassName, luaDocTagClass.isDeprecated, stubElement)
+        return LuaDocTagClassStubImpl(luaDocTagClass.name, params, aliasName, superClass, signatures, luaDocTagClass.isDeprecated, luaDocTagClass.isShape, stubElement)
     }
 
     override fun serialize(luaDocClassStub: LuaDocTagClassStub, stubOutputStream: StubOutputStream) {
         stubOutputStream.writeName(luaDocClassStub.className)
+        stubOutputStream.writeGenericParamsNullable(luaDocClassStub.params)
         stubOutputStream.writeName(luaDocClassStub.aliasName)
-        stubOutputStream.writeName(luaDocClassStub.superClassName)
+        stubOutputStream.writeTyNullable(luaDocClassStub.superClass)
+        stubOutputStream.writeSignaturesNullable(luaDocClassStub.signatures)
         stubOutputStream.writeBoolean(luaDocClassStub.isDeprecated)
+        stubOutputStream.writeBoolean(luaDocClassStub.isShape)
     }
 
     override fun deserialize(stubInputStream: StubInputStream, stubElement: StubElement<*>): LuaDocTagClassStub {
         val className = stubInputStream.readName()
+        val params = stubInputStream.readGenericParamsNullable()
         val aliasName = stubInputStream.readName()
-        val superClassName = stubInputStream.readName()
+        val superClass = stubInputStream.readTyNullable()
+        val signatures = stubInputStream.readSignatureNullable()
         val isDeprecated = stubInputStream.readBoolean()
+        val isShape = stubInputStream.readBoolean()
         return LuaDocTagClassStubImpl(StringRef.toString(className)!!,
+                params,
                 StringRef.toString(aliasName),
-                StringRef.toString(superClassName),
+                superClass,
+                signatures,
                 isDeprecated,
+                isShape,
                 stubElement)
     }
 
@@ -70,33 +79,43 @@ class LuaDocTagClassType : LuaStubElementType<LuaDocTagClassStub, LuaDocTagClass
         val classType = luaDocClassStub.classType
         indexSink.occurrence(StubKeys.CLASS, classType.className)
         indexSink.occurrence(StubKeys.SHORT_NAME, classType.className)
-
-        val superClassName = classType.superClassName
-        if (superClassName != null) {
-            indexSink.occurrence(StubKeys.SUPER_CLASS, superClassName)
+        val superClass = classType.superClass
+        when (superClass) {
+            is ITyClass -> indexSink.occurrence(StubKeys.SUPER_CLASS, superClass.className)
+            is ITyGeneric -> {
+                val base = superClass.base
+                if (base is ITyClass) {
+                    indexSink.occurrence(StubKeys.SUPER_CLASS, base.className)
+                }
+            }
         }
     }
 }
 
 interface LuaDocTagClassStub : StubElement<LuaDocTagClass> {
     val className: String
+    val params: Array<TyGenericParameter>?
     val aliasName: String?
-    val superClassName: String?
-    val classType: TyClass
+    val superClass: ITy?
+    val signatures: Array<IFunSignature>?
+    val classType: ITyClass
     val isDeprecated: Boolean
+    val isShape: Boolean
 }
 
 class LuaDocTagClassStubImpl(override val className: String,
+                             override val params: Array<TyGenericParameter>?,
                              override val aliasName: String?,
-                             override val superClassName: String?,
+                             override val superClass: ITy?,
+                             override val signatures: Array<IFunSignature>?,
                              override val isDeprecated: Boolean,
+                             override val isShape: Boolean,
                              parent: StubElement<*>)
     : LuaDocStubBase<LuaDocTagClass>(parent, LuaElementType.CLASS_DEF), LuaDocTagClassStub {
 
     override val classType: TyClass
         get() {
-            val luaType = createSerializedClass(className, className, superClassName)
-            luaType.aliasName = aliasName
-            return luaType
+            val flags = if (isShape) TyFlags.SHAPE else 0
+            return createSerializedClass(className, params, null, superClass, signatures, aliasName, flags)
         }
 }

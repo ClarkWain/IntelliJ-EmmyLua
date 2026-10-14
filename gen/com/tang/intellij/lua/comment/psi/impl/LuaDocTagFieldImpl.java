@@ -50,20 +50,20 @@ public class LuaDocTagFieldImpl extends StubBasedPsiElementBase<LuaDocTagFieldSt
 
   @Override
   @Nullable
-  public LuaDocClassNameRef getClassNameRef() {
-    return PsiTreeUtil.getChildOfType(this, LuaDocClassNameRef.class);
-  }
-
-  @Override
-  @Nullable
   public LuaDocCommentString getCommentString() {
     return PsiTreeUtil.getChildOfType(this, LuaDocCommentString.class);
   }
 
   @Override
+  @NotNull
+  public List<LuaDocTy> getTyList() {
+    return PsiTreeUtil.getChildrenOfTypeAsList(this, LuaDocTy.class);
+  }
+
+  @Override
   @Nullable
-  public LuaDocTy getTy() {
-    return PsiTreeUtil.getChildOfType(this, LuaDocTy.class);
+  public LuaDocTypeRef getTypeRef() {
+    return PsiTreeUtil.getChildOfType(this, LuaDocTypeRef.class);
   }
 
   @Override
@@ -85,11 +85,6 @@ public class LuaDocTagFieldImpl extends StubBasedPsiElementBase<LuaDocTagFieldSt
   }
 
   @Override
-  public int getWorth() {
-    return LuaDocPsiImplUtilKt.getWorth(this);
-  }
-
-  @Override
   @Nullable
   public PsiElement getNameIdentifier() {
     return LuaDocPsiImplUtilKt.getNameIdentifier(this);
@@ -108,14 +103,20 @@ public class LuaDocTagFieldImpl extends StubBasedPsiElementBase<LuaDocTagFieldSt
   }
 
   @Override
-  public int getTextOffset() {
-    return LuaDocPsiImplUtilKt.getTextOffset(this);
+  @Nullable
+  public LuaDocTy getIndexType() {
+    return LuaDocPsiImplUtilKt.getIndexType(this);
   }
 
   @Override
   @Nullable
-  public String getFieldName() {
-    return LuaDocPsiImplUtilKt.getFieldName(this);
+  public LuaDocTy getValueType() {
+    return LuaDocPsiImplUtilKt.getValueType(this);
+  }
+
+  @Override
+  public int getTextOffset() {
+    return LuaDocPsiImplUtilKt.getTextOffset(this);
   }
 
   @Override
@@ -133,6 +134,17 @@ public class LuaDocTagFieldImpl extends StubBasedPsiElementBase<LuaDocTagFieldSt
   @Override
   public boolean isDeprecated() {
     return LuaDocPsiImplUtilKt.isDeprecated(this);
+  }
+
+  @Override
+  public boolean isExplicitlyTyped() {
+    return LuaDocPsiImplUtilKt.isExplicitlyTyped(this);
+  }
+
+  @Override
+  @Nullable
+  public PsiElement getLbrack() {
+    return findChildByType(LBRACK);
   }
 
 }

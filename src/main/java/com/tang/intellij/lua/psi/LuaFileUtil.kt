@@ -16,17 +16,19 @@
 
 package com.tang.intellij.lua.psi
 
+import com.intellij.ide.plugins.PluginManagerCore
+import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.FileIndexFacade
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.util.SmartList
 import com.tang.intellij.lua.ext.ILuaFileResolver
 import com.tang.intellij.lua.project.LuaSourceRootManager
 import java.io.File
-import java.net.JarURLConnection
 
 /**
  *
@@ -34,17 +36,17 @@ import java.net.JarURLConnection
  */
 object LuaFileUtil {
 
-    private val pluginDirectory: File? by lazy {
-        val pluginXml = LuaFileUtil::class.java.classLoader.getResource("META-INF/plugin.xml") ?: return@lazy null
-        when (pluginXml.protocol) {
-            "file" -> File(pluginXml.toURI()).parentFile?.parentFile?.parentFile
-            "jar" -> {
-                val jarFile = File((pluginXml.openConnection() as JarURLConnection).jarFileURL.toURI())
-                jarFile.parentFile?.parentFile
+    val pluginVirtualDirectory: VirtualFile?
+        get() {
+            val descriptor = PluginManagerCore.getPlugin(PluginId.getId("com.tang"))
+            if (descriptor != null) {
+                val pluginPath = descriptor.pluginPath
+                val url = VfsUtil.pathToUrl(pluginPath.toAbsolutePath().toString())
+                return VirtualFileManager.getInstance().findFileByUrl(url)
             }
-            else -> null
+
+            return null
         }
-    }
 
     var PREDEFINED_KEY = Key.create<Boolean>("lua.lib.predefined")
 
@@ -55,7 +57,7 @@ object LuaFileUtil {
     fun getAllAvailablePathsForMob(shortPath: String?, file: VirtualFile): List<String> {
         val list = SmartList<String>()
         val fullPath = file.canonicalPath
-        val extensions = LuaFileManager.extensions
+        val extensions = LuaFileManager.getInstance().extensions
         if (fullPath != null) {
             for (ext in extensions) {
                 if (!fullPath.endsWith(ext)) {
@@ -85,7 +87,7 @@ object LuaFileUtil {
         if (fixedShortUrl.startsWith("./") || fixedShortUrl.startsWith(".\\")) {
             fixedShortUrl = fixedShortUrl.substring(2)
         }
-        val extensions = LuaFileManager.extensions
+        val extensions = LuaFileManager.getInstance().extensions
         return ILuaFileResolver.findLuaFile(project, fixedShortUrl, extensions)
     }
 
@@ -122,7 +124,7 @@ object LuaFileUtil {
     }
 
     fun getPluginVirtualFile(path: String): String? {
-        val directory = pluginDirectory
+        val directory = pluginVirtualDirectory
         if (directory != null) {
             var fullPath = directory.path + "/classes/" + path
             if (File(fullPath).exists())
