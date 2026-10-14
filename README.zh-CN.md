@@ -18,8 +18,8 @@
 
 | 发布包 | 支持的 IntelliJ 平台范围 |
 | --- | --- |
-| `Lua-Insight-1.5.2-IDEA2025.zip` | IDEA 2025.1–2025.3（251–253） |
-| `Lua-Insight-1.5.2-IDEA2026.zip` | IDEA 2026.1–2026.2（261–262） |
+| `Lua-Insight-1.5.3-IDEA2025.zip` | IDEA 2025.1–2025.3（251–253） |
+| `Lua-Insight-1.5.3-IDEA2026.zip` | IDEA 2026.1–2026.2（261–262） |
 
 Android Studio 请按 **Help → About** 中的 IntelliJ 平台 Build 选择包，不只看产品年份。
 本机 Android Studio 2025.2.3（`AI-252.28238.7.2523.14688667`）使用 **2025** 包。

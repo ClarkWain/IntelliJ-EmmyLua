@@ -22,8 +22,8 @@ Luanalysis plugin. Simultaneously enabling them is not supported.
 
 | Release package | Supported IntelliJ Platform range |
 | --- | --- |
-| `Lua-Insight-1.5.2-IDEA2025.zip` | IDEA 2025.1–2025.3 (251–253) |
-| `Lua-Insight-1.5.2-IDEA2026.zip` | IDEA 2026.1–2026.2 (261–262) |
+| `Lua-Insight-1.5.3-IDEA2025.zip` | IDEA 2025.1–2025.3 (251–253) |
+| `Lua-Insight-1.5.3-IDEA2026.zip` | IDEA 2026.1–2026.2 (261–262) |
 
 For Android Studio, match the IntelliJ platform build in **Help → About**, not
 just the year in its marketing version. The user's Android Studio 2025.2.3
