@@ -27,7 +27,14 @@ class CodeStyleTest : LuaTestBase() {
     fun testCodeStyleConfigurableIdentity() {
         val provider = LuaCodeStyleSettingsProvider()
         assertSame(LuaLanguage.INSTANCE, provider.language)
-        assertNotNull(provider.configurableId)
+        // This API was introduced after 2025.1. Exercise it on newer IDEs
+        // without making the oldest supported test SDK depend on it.
+        val configurableIdGetter = provider.javaClass.methods.firstOrNull {
+            it.name == "getConfigurableId" && it.parameterCount == 0
+        }
+        if (configurableIdGetter != null) {
+            assertNotNull(configurableIdGetter.invoke(provider))
+        }
     }
 
     fun doFormatted(@Language("Lua") unformatted: String, @Language("Lua") formatted: String, action: (common: CommonCodeStyleSettings, lua: LuaCodeStyleSettings, format: () -> Unit) -> Unit) {
