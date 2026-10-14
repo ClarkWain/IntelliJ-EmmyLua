@@ -18,8 +18,8 @@ This independent fork is maintained by [ClarkWain](https://github.com/ClarkWain)
 
 | Release package | Supported IntelliJ Platform range |
 | --- | --- |
-| `IntelliJ-LuaInsight-1.5.4-IDEA2025.zip` | IDEA 2025.1–2025.3 (251–253) |
-| `IntelliJ-LuaInsight-1.5.4-IDEA2026.zip` | IDEA 2026.1–2026.2 (261–262) |
+| `IntelliJ-LuaInsight-1.5.5-IDEA2025.zip` | IDEA 2025.1–2025.3 (251–253) |
+| `IntelliJ-LuaInsight-1.5.5-IDEA2026.zip` | IDEA 2026.1–2026.2 (261–262) |
 
 For Android Studio, select a package using the IntelliJ platform build shown in
 **Help → About**: builds **251–253** use the **2025** package, and builds

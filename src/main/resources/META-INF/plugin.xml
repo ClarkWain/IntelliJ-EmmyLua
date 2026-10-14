@@ -70,6 +70,11 @@
     ]]></description>
 
     <change-notes><![CDATA[
+    <strong>1.5.5</strong>
+    <ul>
+        <li>Declare package.path, package.cpath and package.config as strings in the Lua standard library definitions.</li>
+        <li>Fix false empty-string type errors when assigning module search paths.</li>
+    </ul>
     <strong>1.5.4</strong>
     <ul>
         <li>Infer non-nil types in short-circuit expressions and guarded branches.</li>

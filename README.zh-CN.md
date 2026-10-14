@@ -16,8 +16,8 @@ Lua Insight 是面向 IntelliJ IDEA 和 Android Studio 的 Lua 插件，将
 
 | 发布包 | 支持的 IntelliJ 平台范围 |
 | --- | --- |
-| `IntelliJ-LuaInsight-1.5.4-IDEA2025.zip` | IDEA 2025.1–2025.3（251–253） |
-| `IntelliJ-LuaInsight-1.5.4-IDEA2026.zip` | IDEA 2026.1–2026.2（261–262） |
+| `IntelliJ-LuaInsight-1.5.5-IDEA2025.zip` | IDEA 2025.1–2025.3（251–253） |
+| `IntelliJ-LuaInsight-1.5.5-IDEA2026.zip` | IDEA 2026.1–2026.2（261–262） |
 
 Android Studio 按 **Help → About** 中的 IntelliJ 平台 Build 选择安装包：
 **251–253** 对应 **2025 包**，**261–262** 对应 **2026 包**。
