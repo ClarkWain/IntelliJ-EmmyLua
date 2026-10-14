@@ -22,6 +22,7 @@ import org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     id("org.jetbrains.intellij.platform") version "2.7.0"
@@ -172,7 +173,11 @@ project(":") {
                 intellijIdeaUltimate(buildVersionData.ideaSDKVersion)
             }
             bundledPlugin("com.intellij.java")
-            testFramework(TestFrameworkType.Bundled)
+            if (localIdePath != null && file("$localIdePath/lib/testFramework.jar").isFile) {
+                testFramework(TestFrameworkType.Bundled)
+            } else {
+                testFramework(TestFrameworkType.Platform)
+            }
             pluginVerifier()
             // 2025.1 keeps spellchecker on the main platform classpath. Newer
             // products (including Android Studio 252) expose it as a module.
@@ -247,7 +252,7 @@ project(":") {
             dependsOn("installEmmyDebugger")
         }
 
-        compileKotlin {
+        withType<KotlinCompile> {
             compilerOptions {
                 jvmTarget.set(JvmTarget.fromTarget(buildVersionData.jvmTarget))
                 freeCompilerArgs.add("-opt-in=kotlin.contracts.ExperimentalContracts")
