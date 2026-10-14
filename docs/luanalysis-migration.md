@@ -84,7 +84,8 @@ It validates tests, the plugin archive and the Plugin Verifier against that exac
 IDE. It uses an unused temporary ASCII drive mapping when needed and removes only
 that mapping on exit. It does not modify the user's IDE settings or installed plugins.
 
-Without `localIdePath`, the default build downloads IntelliJ IDEA 2025.2.5 (252).
-The retained upstream target can be selected with `-DIDEA_VER=2026.2` and JDK 25.
+Without `localIdePath`, the default build downloads IntelliJ IDEA 2025.1.7.2 (251).
+The 2026 release target uses IDEA 2026.1.5 (261), selected with `-DIDEA_VER=2026`
+and a JDK 25 toolchain. Run Gradle itself with JDK 21.
 Validation requires automated regression tests, API compatibility checks and an
 actual sandbox IDE run with a Lua sample. Build success alone is insufficient.

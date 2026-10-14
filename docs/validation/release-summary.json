@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-14",
+  "source_commit": "2666e8a82071612b41308ef02425cefe01eb42b6",
+  "ci_run": "https://github.com/ClarkWain/IntelliJ-EmmyLua/actions/runs/38511970766",
+  "plugin_id": "com.weitp",
+  "targets": {
+    "2025": {
+      "file": "Weitp-Lua-1.5.1-IDEA2025.zip",
+      "sha256": "fe9931610c7977b048ccb75d979f4f8fc1ae25c0078c33e653df0229ec68e777",
+      "bytes": 8877268,
+      "since_build": "251",
+      "until_build": "253.*",
+      "tests": {
+        "suites": 26,
+        "tests": 109,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "plugin_verifier": {
+        "IU-251.29188.72": "1 compatibility warning. 24 usages of deprecated API. 21 usages of experimental API",
+        "IU-252.28539.97": "1 compatibility warning. 24 usages of deprecated API. 21 usages of experimental API",
+        "IU-253.33813.55": "1 compatibility warning. 26 usages of deprecated API. 21 usages of experimental API"
+      }
+    },
+    "2026": {
+      "file": "Weitp-Lua-1.5.1-IDEA2026.zip",
+      "sha256": "c0e84804b8f3410c55dfba04bc55823c0ba1842bad83a20260bf09bc85048876",
+      "bytes": 8877996,
+      "since_build": "261",
+      "until_build": "262.*",
+      "tests": {
+        "suites": 26,
+        "tests": 109,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "plugin_verifier": {
+        "IU-261.27258.48": "1 compatibility warning. 32 usages of deprecated API. 21 usages of experimental API",
+        "IU-262.10968.63": "1 compatibility warning. 33 usages of deprecated API. 21 usages of experimental API"
+      }
+    }
+  }
+}

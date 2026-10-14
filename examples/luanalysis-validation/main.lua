@@ -12,6 +12,7 @@
 ---@type Box<Point>
 local boxed = { value = { x = 10, y = 20 } }
 
+--- **Squared distance** from the origin. Supports `Point` coordinates.
 ---@param point Point
 ---@return number
 local function distanceSquared(point)
