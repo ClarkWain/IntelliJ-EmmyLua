@@ -16,8 +16,7 @@
 
 package com.tang.intellij.lua.psi
 
-import com.intellij.ide.plugins.PluginManagerCore
-import com.intellij.openapi.extensions.PluginId
+import com.intellij.ide.plugins.cl.PluginAwareClassLoader
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.FileIndexFacade
 import com.intellij.openapi.util.Key
@@ -38,7 +37,7 @@ object LuaFileUtil {
 
     val pluginVirtualDirectory: VirtualFile?
         get() {
-            val descriptor = PluginManagerCore.getPlugin(PluginId.getId("com.weitp"))
+            val descriptor = (LuaFileUtil::class.java.classLoader as? PluginAwareClassLoader)?.pluginDescriptor
             if (descriptor != null) {
                 val pluginPath = descriptor.pluginPath
                 val url = VfsUtil.pathToUrl(pluginPath.toAbsolutePath().toString())
