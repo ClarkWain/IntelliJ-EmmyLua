@@ -2,7 +2,7 @@
 
 This records the initial `com.tang` package before the independent plugin ID
 and 2025/2026 release builds. See [the current release validation](validation.md)
-for installable `com.weitp` packages and their exact checks.
+for current packages and their exact checks.
 
 Date: 2026-10-14. Validation target: Android Studio Otter 3 Feature Drop 2025.2.3.
 

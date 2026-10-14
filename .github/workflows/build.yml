@@ -7,6 +7,10 @@ on:
         description: Release version (leave empty for a development build)
         required: false
         type: string
+      validate:
+        description: Run regression tests and Plugin Verifier
+        default: false
+        type: boolean
   push:
     branches:
       - '*'
@@ -51,19 +55,27 @@ jobs:
           distribution: 'temurin'
 
       - name: Test and build ${{ matrix.ide }}
+        if: github.event_name != 'workflow_dispatch' || inputs.validate
         run: |
           export JAVA_HOME="$JAVA_HOME_21_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
           xvfb-run --auto-servernum ./gradlew test buildPlugin verifyPlugin -DIDEA_VER=${{ matrix.ide }} "-PverificationIdeVersions=${{ matrix.verify }}" --no-configuration-cache
 
+      - name: Build ${{ matrix.ide }}
+        if: github.event_name == 'workflow_dispatch' && !inputs.validate
+        run: |
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          xvfb-run --auto-servernum ./gradlew buildPlugin -DIDEA_VER=${{ matrix.ide }} --no-configuration-cache
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4.6.2
         with:
-          name: Lua-Insight-IDEA${{ matrix.ide }}
+          name: IntelliJ-LuaInsight-IDEA${{ matrix.ide }}
           path: build/distributions/*.zip
 
       - name: Upload validation reports
-        if: always()
+        if: always() && (github.event_name != 'workflow_dispatch' || inputs.validate)
         uses: actions/upload-artifact@v4.6.2
         with:
           name: validation-IDEA${{ matrix.ide }}

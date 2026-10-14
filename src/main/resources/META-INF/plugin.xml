@@ -22,8 +22,8 @@
     <category>Custom Languages</category>
     <description><![CDATA[
     Lua support with Luanalysis type analysis, based on EmmyLua.<br>
-    <p>Independent fork: plugin ID <code>com.weitp</code>. Disable other Lua plugins before enabling this plugin.</p>
-    <p><a href="https://github.com/ClarkWain/IntelliJ-EmmyLua">Source Code</a> | <a href="https://github.com/ClarkWain/IntelliJ-EmmyLua/issues">Report an Issue</a> | <a href="https://github.com/ClarkWain/IntelliJ-EmmyLua#readme">Documentation</a></p>
+    <p>Lua Insight is an independent fork maintained by ClarkWain. Disable other Lua plugins before enabling this plugin.</p>
+    <p><a href="https://github.com/ClarkWain/IntelliJ-LuaInsight">Source Code</a> | <a href="https://github.com/ClarkWain/IntelliJ-LuaInsight/issues">Report an Issue</a> | <a href="https://github.com/ClarkWain/IntelliJ-LuaInsight#readme">Documentation</a></p>
     Features:
     <ul>
         <li>Syntax highlighting</li>
@@ -66,24 +66,25 @@
         <li>Region folding</li>
         <li>Lua Check Tool</li>
     </ul>
-    <p>问题反馈请提交到 <a href="https://github.com/ClarkWain/IntelliJ-EmmyLua/issues">Lua Insight Issues</a>。</p>
+    <p>问题反馈请提交到 <a href="https://github.com/ClarkWain/IntelliJ-LuaInsight/issues">Lua Insight Issues</a>。</p>
     ]]></description>
 
     <change-notes><![CDATA[
     <strong>1.5.3</strong>
     <ul>
+        <li>Project renamed to IntelliJ-LuaInsight.</li>
         <li>Publisher shown as ClarkWain, the maintainer of this fork.</li>
         <li>Source, documentation and issue links point to the Lua Insight repository.</li>
     </ul>
     <strong>1.5.2</strong>
     <ul>
         <li>Plugin display name and release packages renamed to Lua Insight.</li>
-        <li>Plugin ID remains com.weitp; existing settings and compatibility ranges are preserved.</li>
+        <li>Existing settings and compatibility ranges are preserved.</li>
     </ul>
     <strong>1.5.1</strong>
     <ul>
         <li>Luanalysis type analysis on IntelliJ IDEA 2025 and 2026.</li>
-        <li>Independent plugin ID: com.weitp.</li>
+        <li>Independent plugin identity.</li>
     </ul>
     <strong>1.4.16</strong>
     <ul>

@@ -1,30 +1,25 @@
-# Lua Insight
+# IntelliJ-LuaInsight
 
 English | [简体中文](README.zh-CN.md)
 
-A Lua plugin for IntelliJ IDEA and Android Studio that brings
+Lua Insight is a Lua plugin for IntelliJ IDEA and Android Studio that brings
 [Luanalysis](https://github.com/Benjamin-Dobell/IntelliJ-Luanalysis)'s advanced type
 analysis to the maintained [EmmyLua](https://github.com/EmmyLua/IntelliJ-EmmyLua)
 codebase, preserving EmmyLua's editor tools and debugger integrations.
-This is an independent fork, with plugin ID **`com.weitp`** and display name
-**Lua Insight**.
-Maintained by [ClarkWain](https://github.com/ClarkWain).
+This independent fork is maintained by [ClarkWain](https://github.com/ClarkWain).
 
 ## Install
 
-1. Download the package for the IDE version from [Releases](https://github.com/ClarkWain/IntelliJ-EmmyLua/releases).
+1. Download the package for the IDE version from [Releases](https://github.com/ClarkWain/IntelliJ-LuaInsight/releases).
 2. Disable EmmyLua, Luanalysis and other Lua language plugins to avoid multiple
    providers handling the same Lua files.
 3. Open **Settings → Plugins → gear menu → Install Plugin from Disk**, select the
    ZIP, and restart the IDE. Do not extract the ZIP yourself.
 
-The independent ID prevents this fork from replacing an installed EmmyLua or
-Luanalysis plugin. Simultaneously enabling them is not supported.
-
 | Release package | Supported IntelliJ Platform range |
 | --- | --- |
-| `Lua-Insight-1.5.3-IDEA2025.zip` | IDEA 2025.1–2025.3 (251–253) |
-| `Lua-Insight-1.5.3-IDEA2026.zip` | IDEA 2026.1–2026.2 (261–262) |
+| `IntelliJ-LuaInsight-1.5.3-IDEA2025.zip` | IDEA 2025.1–2025.3 (251–253) |
+| `IntelliJ-LuaInsight-1.5.3-IDEA2026.zip` | IDEA 2026.1–2026.2 (261–262) |
 
 For Android Studio, select a package using the IntelliJ platform build shown in
 **Help → About**: builds **251–253** use the **2025** package, and builds
@@ -81,4 +76,4 @@ contributors. Original copyright notices are retained. Both upstream projects
 and this fork use the [Apache License 2.0](LICENSE.txt).
 
 [EmmyLua documentation](https://emmylua.github.io/) ·
-[Report an issue in this fork](https://github.com/ClarkWain/IntelliJ-EmmyLua/issues)
+[Report an issue in this fork](https://github.com/ClarkWain/IntelliJ-LuaInsight/issues)

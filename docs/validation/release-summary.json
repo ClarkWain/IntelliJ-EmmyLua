@@ -1,7 +1,7 @@
 {
   "date": "2026-10-14",
   "source_commit": "479e5a656f3cad66a03eb74c28c29267930f88e6",
-  "ci_run": "https://github.com/ClarkWain/IntelliJ-EmmyLua/actions/runs/38514306565",
+  "ci_run": "https://github.com/ClarkWain/IntelliJ-LuaInsight/actions/runs/38514306565",
   "plugin_id": "com.weitp",
   "targets": {
     "2025": {

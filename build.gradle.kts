@@ -36,7 +36,7 @@ data class BuildData(
     val ideaSDKVersion: String,
     val sinceBuild: String,
     val untilBuild: String,
-    val archiveName: String = "Lua-Insight",
+    val archiveName: String = "IntelliJ-LuaInsight",
     val jvmTarget: String = "1.8",
     val targetCompatibilityLevel: JavaVersion = JavaVersion.VERSION_11,
     val buildJdkVersion: JavaVersion = targetCompatibilityLevel,

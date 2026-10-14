@@ -1,10 +1,10 @@
 # Lua Insight 1.5.2 release validation
 
-Date: **2026-10-14**. Display name: **Lua Insight**. Plugin ID: **`com.weitp`**.
+Date: **2026-10-14**. Display name: **Lua Insight**.
 
 The release binaries come from source commit
 `479e5a656f3cad66a03eb74c28c29267930f88e6` and the successful
-[release CI run](https://github.com/ClarkWain/IntelliJ-EmmyLua/actions/runs/38514306565).
+[release CI run](https://github.com/ClarkWain/IntelliJ-LuaInsight/actions/runs/38514306565).
 Later documentation changes do not change these binaries.
 
 ## Artifacts and scope
@@ -69,7 +69,7 @@ completion offered **x/y** typed **number**, the invalid sample showed the expec
 four type-safety errors, and Quick Documentation rendered Markdown bold and
 inline code with the correct parameter/return types.
 
-The [preceding exact validation record](https://github.com/ClarkWain/IntelliJ-EmmyLua/blob/935c6789203317063bbe4a1bd65399e87436efd3/docs/validation.md)
+The [preceding exact validation record](https://github.com/ClarkWain/IntelliJ-LuaInsight/blob/935c6789203317063bbe4a1bd65399e87436efd3/docs/validation.md)
 retains its original artifact hashes, runtime details and screenshots. The
 following images are that prior interactive evidence, not new 1.5.2 captures:
 
@@ -93,7 +93,7 @@ The IDEA 262 preview uses the official cross-platform Maven SDK distribution
 and an external JDK, rather than the full Windows installer with bundled JBR.
 It logs unrelated Station/OS Integration/WSL startup errors, including a missing
 native daemon archive; the loading check does not claim the whole IDE log is
-error-free. No exceptions attributed to `com.weitp` were found in the new previews.
+error-free. No Lua Insight exceptions were found in the new previews.
 
 The [build workflow](../.github/workflows/build.yml) compiles each target against
 the oldest SDK in its range, then runs tests and the five listed verifier checks.
