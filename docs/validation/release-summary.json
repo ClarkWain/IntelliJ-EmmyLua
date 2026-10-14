@@ -1,13 +1,13 @@
 {
   "date": "2026-10-14",
-  "source_commit": "2666e8a82071612b41308ef02425cefe01eb42b6",
-  "ci_run": "https://github.com/ClarkWain/IntelliJ-EmmyLua/actions/runs/38511970766",
+  "source_commit": "479e5a656f3cad66a03eb74c28c29267930f88e6",
+  "ci_run": "https://github.com/ClarkWain/IntelliJ-EmmyLua/actions/runs/38514306565",
   "plugin_id": "com.weitp",
   "targets": {
     "2025": {
-      "file": "Weitp-Lua-1.5.1-IDEA2025.zip",
-      "sha256": "fe9931610c7977b048ccb75d979f4f8fc1ae25c0078c33e653df0229ec68e777",
-      "bytes": 8877268,
+      "file": "Lua-Insight-1.5.2-IDEA2025.zip",
+      "sha256": "0f978abfa440483b46e1b053b56cdfeb3e7004f241f2d9aaf1f21adb54e9045a",
+      "bytes": 8877815,
       "since_build": "251",
       "until_build": "253.*",
       "tests": {
@@ -24,9 +24,9 @@
       }
     },
     "2026": {
-      "file": "Weitp-Lua-1.5.1-IDEA2026.zip",
-      "sha256": "c0e84804b8f3410c55dfba04bc55823c0ba1842bad83a20260bf09bc85048876",
-      "bytes": 8877996,
+      "file": "Lua-Insight-1.5.2-IDEA2026.zip",
+      "sha256": "eb5d83292c1813d43e13d2e0703ecd1fe82e0131c1a159d22bd4e20284d99877",
+      "bytes": 8878519,
       "since_build": "261",
       "until_build": "262.*",
       "tests": {
