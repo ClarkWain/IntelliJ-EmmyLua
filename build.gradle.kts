@@ -174,7 +174,15 @@ project(":") {
             bundledPlugin("com.intellij.java")
             testFramework(TestFrameworkType.Bundled)
             pluginVerifier()
-            bundledModule("intellij.spellchecker")
+            // 2025.1 keeps spellchecker on the main platform classpath. Newer
+            // products (including Android Studio 252) expose it as a module.
+            val modularSpellchecker = localIdePath?.let {
+                Regex("\"name\"\\s*:\\s*\"intellij.spellchecker\"")
+                    .containsMatchIn(file("$it/product-info.json").readText())
+            } ?: (buildVersionData.ideaSDKShortVersion == "2026")
+            if (modularSpellchecker) {
+                bundledModule("intellij.spellchecker")
+            }
         }
     }
 
