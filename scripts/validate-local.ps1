@@ -27,7 +27,7 @@ try {
     }
     $javaRelease = Get-Content -LiteralPath (Join-Path $env:JAVA_HOME 'release') -Raw
     if ($javaRelease -notmatch 'JAVA_VERSION="21[.\"]') {
-        throw 'Gradle 8.14 requires JDK 21 for this project. Provide -GradleJavaHome pointing to JDK 21.'
+        throw 'This project runs Gradle with JDK 21. Provide -GradleJavaHome pointing to JDK 21.'
     }
     if ($IdeaVersion -eq '2026' -and (Test-Path -LiteralPath (Join-Path $ideJbr 'release'))) {
         $jbrRelease = Get-Content -LiteralPath (Join-Path $ideJbr 'release') -Raw

@@ -25,7 +25,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    id("org.jetbrains.intellij.platform") version "2.7.0"
+    id("org.jetbrains.intellij.platform") version "2.19.0"
     id("org.jetbrains.kotlin.jvm").version("2.3.0")
     id("de.undercouch.download").version("5.3.0")
 }
@@ -209,7 +209,10 @@ project(":") {
     }
 
     intellijPlatform {
-        version = version
+        projectName.set(buildVersionData.archiveName)
+        pluginConfiguration {
+            version = project.version.toString()
+        }
         sandboxContainer.set(layout.buildDirectory.dir("${buildVersionData.ideaSDKShortVersion}/idea-sandbox"))
         providers.gradleProperty("verificationIdeVersions").orNull?.let { versions ->
             pluginVerification {
@@ -281,11 +284,11 @@ project(":") {
             doLast {
                 copy {
                     from("src/main/resources/std")
-                    into("$destinationDir/${pluginName.get()}/std")
+                    into(pluginDirectory.get().dir("std"))
                 }
                 copy {
                     from("src/main/resources/debugger")
-                    into("$destinationDir/${pluginName.get()}/debugger")
+                    into(pluginDirectory.get().dir("debugger"))
                 }
             }
         }
