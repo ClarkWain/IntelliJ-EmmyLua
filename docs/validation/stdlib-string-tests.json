@@ -1,0 +1,23 @@
+{
+  "source_commit": "866df1e7bd1b040984a1fe97ec15251010fdfdc4",
+  "date": "2026-10-14",
+  "ide": "Android Studio 2025.2.3",
+  "build": "AI-252.28238.7.2523.14688667",
+  "scope": "IntelliJ Platform editor fixtures for Lua 5.1-5.4 standard-library string fields.",
+  "suite": "com.tang.intellij.test.inspections.StandardLibraryTypesTest",
+  "tests": 4,
+  "failures": 0,
+  "errors": 0,
+  "timestamp_utc": "2026-10-14T09:09:19.717Z",
+  "cases": [
+    "testLua51",
+    "testLua52",
+    "testLua53",
+    "testLua54"
+  ],
+  "checks": [
+    "string concatenation assignments accepted",
+    "number assignments rejected",
+    "inferred field types equal string"
+  ]
+}
