@@ -1,7 +1,6 @@
 # Lua Insight 1.5.2 release validation
 
 Date: **2026-10-14**. Display name: **Lua Insight**. Plugin ID: **`com.weitp`**.
-The previous GitHub Release was removed; the rebuilt release packages use the new name.
 
 The release binaries come from source commit
 `479e5a656f3cad66a03eb74c28c29267930f88e6` and the successful
@@ -63,9 +62,9 @@ using separate configuration/system/plugin/log directories. Startup logs confirm
 | Android Studio Otter 3 Feature Drop 2025.2.3 | AI-252.28238.7.2523.14688667; bundled JBR 21.0.8 | `Lua Insight (1.5.2-IDEA2025)` |
 | IntelliJ IDEA 2026.2.3 | IU-262.10968.63; Eclipse Temurin 25.0.4.1+1-LTS | `Lua Insight (1.5.2-IDEA2026)` |
 
-The desktop was locked after startup, so interactive controls and new screenshots
-were not collected for 1.5.2. Its unchanged bytecode was already interactively
-validated in both applications during the preceding 1.5.1 run: `Box<Point>.value`
+Interactive checks were performed on the bytecode-identical 1.5.1 binaries in
+both applications. They were not repeated for the 1.5.2 metadata update.
+`Box<Point>.value`
 completion offered **x/y** typed **number**, the invalid sample showed the expected
 four type-safety errors, and Quick Documentation rendered Markdown bold and
 inline code with the correct parameter/return types.
@@ -86,8 +85,8 @@ following images are that prior interactive evidence, not new 1.5.2 captures:
 
 Both rebuilt packages have fresh automated regression and compatibility checks,
 metadata audits and native loading checks. The interactive functional evidence
-comes from the preceding bytecode-identical version. Existing user IDE settings
-and plugins were preserved. Native debugger sessions and other operating systems
+comes from the preceding bytecode-identical version. IDE configuration and plugin
+directories were isolated. Native debugger sessions and other operating systems
 were not exercised.
 
 The IDEA 262 preview uses the official cross-platform Maven SDK distribution

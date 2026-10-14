@@ -7,10 +7,11 @@
 迁入持续维护的 [EmmyLua](https://github.com/EmmyLua/IntelliJ-EmmyLua)，保留 EmmyLua
 的编辑器功能和调试器集成。这是独立 fork，插件 ID 为 **`com.weitp`**，显示名称为
 **Lua Insight**。
+维护者：[ClarkWain](https://github.com/ClarkWain)。
 
 ## 安装
 
-1. 在 [Releases](https://github.com/ClarkWain/IntelliJ-EmmyLua/releases) 下载与你的 IDE 匹配的 ZIP。
+1. 在 [Releases](https://github.com/ClarkWain/IntelliJ-EmmyLua/releases) 下载与 IDE 版本对应的安装包。
 2. 禁用 EmmyLua、Luanalysis 等其他 Lua 语言插件，避免多个插件同时处理 Lua 文件。
 3. 打开 **Settings → Plugins → 齿轮菜单 → Install Plugin from Disk**，选择 ZIP 并重启 IDE。无需手动解压。
 
@@ -21,8 +22,8 @@
 | `Lua-Insight-1.5.3-IDEA2025.zip` | IDEA 2025.1–2025.3（251–253） |
 | `Lua-Insight-1.5.3-IDEA2026.zip` | IDEA 2026.1–2026.2（261–262） |
 
-Android Studio 请按 **Help → About** 中的 IntelliJ 平台 Build 选择包，不只看产品年份。
-本机 Android Studio 2025.2.3（`AI-252.28238.7.2523.14688667`）使用 **2025** 包。
+Android Studio 按 **Help → About** 中的 IntelliJ 平台 Build 选择安装包：
+**251–253** 对应 **2025 包**，**261–262** 对应 **2026 包**。
 具体测试版本、校验值和实际运行截图见 [验证记录](docs/validation.md)。
 
 ## 特性
@@ -66,7 +67,7 @@ Windows 下可用以下脚本复验，脚本会处理中文路径导致的 Java 
 
 基于 [tangzx](https://github.com/tangzx) 及贡献者维护的 EmmyLua，以及
 [Benjamin Dobell](https://github.com/Benjamin-Dobell) 及贡献者维护的 Luanalysis。
-保留原有版权声明；两个上游项目及本 fork 均采用 [Apache License 2.0](LICENSE)。
+保留原有版权声明；两个上游项目及本 fork 均采用 [Apache License 2.0](LICENSE.txt)。
 
 [EmmyLua 中文文档](https://emmylua.github.io/zh_CN/) ·
 [向本 fork 提交问题](https://github.com/ClarkWain/IntelliJ-EmmyLua/issues)

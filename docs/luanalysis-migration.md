@@ -13,7 +13,7 @@ Source revisions:
 
 ## Target platform
 
-The user's installed Android Studio is `AndroidStudio2025.2.3`, build
+The Android Studio validation target is `AndroidStudio2025.2.3`, build
 `AI-252.28238.7.2523.14688667`, with JBR 21.0.8. The primary target is IntelliJ
 Platform **252**. Release builds cover the **251–253** and **261–262** ranges.
 Compatibility must be verified per target; a declared build range is not a test result.
@@ -82,7 +82,7 @@ For a Windows checkout containing non-ASCII characters, use the validation scrip
 
 It validates tests, the plugin archive and the Plugin Verifier against that exact
 IDE. It uses an unused temporary ASCII drive mapping when needed and removes only
-that mapping on exit. It does not modify the user's IDE settings or installed plugins.
+that mapping on exit. Validation runs with isolated IDE settings and plugin directories.
 
 Without `localIdePath`, the default build downloads IntelliJ IDEA 2025.1.7.2 (251).
 The 2026 release target uses IDEA 2026.1.5 (261), selected with `-DIDEA_VER=2026`

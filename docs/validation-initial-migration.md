@@ -4,8 +4,7 @@ This records the initial `com.tang` package before the independent plugin ID
 and 2025/2026 release builds. See [the current release validation](validation.md)
 for installable `com.weitp` packages and their exact checks.
 
-Date: 2026-10-14. Target selected from the user's installed Android Studio,
-rather than from a guessed IDE version.
+Date: 2026-10-14. Validation target: Android Studio Otter 3 Feature Drop 2025.2.3.
 
 ## Environment and artifact
 
@@ -62,7 +61,7 @@ This also validates the packaged plugin independently of Gradle's development
 sandbox. Startup logs identify the loaded custom plugin as
 `EmmyLua (1.5.0-luanalysis-IDEA2025.2)`.
 
-The user's normal configuration and installed EmmyLua were preserved.
+The validation used an isolated configuration and plugin directory.
 
 - The Lua validation project opened and finished indexing.
 - `Box<Point>` member completion offered **x** and **y**, both of type **number**.

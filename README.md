@@ -8,10 +8,11 @@ analysis to the maintained [EmmyLua](https://github.com/EmmyLua/IntelliJ-EmmyLua
 codebase, preserving EmmyLua's editor tools and debugger integrations.
 This is an independent fork, with plugin ID **`com.weitp`** and display name
 **Lua Insight**.
+Maintained by [ClarkWain](https://github.com/ClarkWain).
 
 ## Install
 
-1. Download the ZIP matching your IDE from [Releases](https://github.com/ClarkWain/IntelliJ-EmmyLua/releases).
+1. Download the package for the IDE version from [Releases](https://github.com/ClarkWain/IntelliJ-EmmyLua/releases).
 2. Disable EmmyLua, Luanalysis and other Lua language plugins to avoid multiple
    providers handling the same Lua files.
 3. Open **Settings → Plugins → gear menu → Install Plugin from Disk**, select the
@@ -25,9 +26,9 @@ Luanalysis plugin. Simultaneously enabling them is not supported.
 | `Lua-Insight-1.5.3-IDEA2025.zip` | IDEA 2025.1–2025.3 (251–253) |
 | `Lua-Insight-1.5.3-IDEA2026.zip` | IDEA 2026.1–2026.2 (261–262) |
 
-For Android Studio, match the IntelliJ platform build in **Help → About**, not
-just the year in its marketing version. The user's Android Studio 2025.2.3
-(build `AI-252.28238.7.2523.14688667`) uses the **2025** package.
+For Android Studio, select a package using the IntelliJ platform build shown in
+**Help → About**: builds **251–253** use the **2025** package, and builds
+**261–262** use the **2026** package.
 Exact tested builds, checksums and runtime evidence are recorded in
 [validation](docs/validation.md).
 
@@ -77,7 +78,7 @@ On Windows, this helper also handles non-ASCII checkout paths:
 Based on EmmyLua by [tangzx](https://github.com/tangzx) and its contributors, and
 Luanalysis by [Benjamin Dobell](https://github.com/Benjamin-Dobell) and its
 contributors. Original copyright notices are retained. Both upstream projects
-and this fork use the [Apache License 2.0](LICENSE).
+and this fork use the [Apache License 2.0](LICENSE.txt).
 
 [EmmyLua documentation](https://emmylua.github.io/) ·
 [Report an issue in this fork](https://github.com/ClarkWain/IntelliJ-EmmyLua/issues)
