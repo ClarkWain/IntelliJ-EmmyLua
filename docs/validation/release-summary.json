@@ -1,45 +1,31 @@
 {
   "date": "2026-10-14",
-  "source_commit": "479e5a656f3cad66a03eb74c28c29267930f88e6",
-  "ci_run": "https://github.com/ClarkWain/IntelliJ-LuaInsight/actions/runs/38514306565",
-  "plugin_id": "com.weitp",
+  "source_commit": "73a05d6714bbf605b7e1271b67e47f58fb3aa30f",
+  "ci_run": "https://github.com/ClarkWain/IntelliJ-LuaInsight/actions/runs/38522104615",
   "targets": {
     "2025": {
-      "file": "Lua-Insight-1.5.2-IDEA2025.zip",
-      "sha256": "0f978abfa440483b46e1b053b56cdfeb3e7004f241f2d9aaf1f21adb54e9045a",
-      "bytes": 8877815,
+      "file": "IntelliJ-LuaInsight-1.5.3-IDEA2025.zip",
+      "sha256": "c1dd520e875a439e8cff894249d047c220bac1e8c3c31676389104cf5638fa06",
+      "bytes": 8883446,
       "since_build": "251",
       "until_build": "253.*",
-      "tests": {
-        "suites": 26,
-        "tests": 109,
-        "failures": 0,
-        "errors": 0,
-        "skipped": 0
-      },
-      "plugin_verifier": {
-        "IU-251.29188.72": "1 compatibility warning. 24 usages of deprecated API. 21 usages of experimental API",
-        "IU-252.28539.97": "1 compatibility warning. 24 usages of deprecated API. 21 usages of experimental API",
-        "IU-253.33813.55": "1 compatibility warning. 26 usages of deprecated API. 21 usages of experimental API"
-      }
+      "checks": [
+        "compiled",
+        "packaged",
+        "descriptor and resources inspected"
+      ]
     },
     "2026": {
-      "file": "Lua-Insight-1.5.2-IDEA2026.zip",
-      "sha256": "eb5d83292c1813d43e13d2e0703ecd1fe82e0131c1a159d22bd4e20284d99877",
-      "bytes": 8878519,
+      "file": "IntelliJ-LuaInsight-1.5.3-IDEA2026.zip",
+      "sha256": "0b56f1536e76dc66620e9fdbb2f97fe8605705cd0035c9ac0f0aaaac29e12f71",
+      "bytes": 8884162,
       "since_build": "261",
       "until_build": "262.*",
-      "tests": {
-        "suites": 26,
-        "tests": 109,
-        "failures": 0,
-        "errors": 0,
-        "skipped": 0
-      },
-      "plugin_verifier": {
-        "IU-261.27258.48": "1 compatibility warning. 32 usages of deprecated API. 21 usages of experimental API",
-        "IU-262.10968.63": "1 compatibility warning. 33 usages of deprecated API. 21 usages of experimental API"
-      }
+      "checks": [
+        "compiled",
+        "packaged",
+        "descriptor and resources inspected"
+      ]
     }
   }
 }
