@@ -33,7 +33,7 @@ class LuaAllClassesSearch : ExtensibleQueryFactory<ITyClass, LuaAllClassesSearch
     class SearchParameters(val searchScope: SearchScope, val project: Project)
 
     companion object {
-        private val EP_NAME = ExtensionPointName.create<QueryExecutor<ITyClass, SearchParameters>>("com.tang.intellij.lua.luaAllClassesSearch")
+        private val EP_NAME = ExtensionPointName.create<QueryExecutor<ITyClass, SearchParameters>>("com.weitp.intellij.lua.luaAllClassesSearch")
 
         private val INSTANCE = LuaAllClassesSearch()
 

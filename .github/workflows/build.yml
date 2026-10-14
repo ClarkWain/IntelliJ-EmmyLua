@@ -1,6 +1,12 @@
 name: Build Plugin
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (leave empty for a development build)
+        required: false
+        type: string
   push:
     branches:
       - '*'
@@ -18,11 +24,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ide: ['2025.2', '2026.2']
+        include:
+          - ide: '2025'
+            verify: '2025.1.7.2;2025.2.6.3;2025.3.6.1'
+          - ide: '2026'
+            verify: '2026.1.5;2026.2.3'
 
     env:
       CI: true
-      CI_BUILD_VERSION: 1.5.0-luanalysis.${{ github.run_number }}
+      CI_BUILD_VERSION: ${{ inputs.version || format('1.5.1-dev.{0}', github.run_number) }}
 
     steps:
       - name: Checkout
@@ -44,10 +54,20 @@ jobs:
         run: |
           export JAVA_HOME="$JAVA_HOME_21_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
-          xvfb-run --auto-servernum ./gradlew test buildPlugin -DIDEA_VER=${{ matrix.ide }} --no-configuration-cache
+          xvfb-run --auto-servernum ./gradlew test buildPlugin verifyPlugin -DIDEA_VER=${{ matrix.ide }} "-PverificationIdeVersions=${{ matrix.verify }}" --no-configuration-cache
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4.6.2
         with:
-          name: v${{ env.CI_BUILD_VERSION }}-IDEA${{ matrix.ide }}
+          name: Weitp-Lua-IDEA${{ matrix.ide }}
           path: build/distributions/*.zip
+
+      - name: Upload validation reports
+        if: always()
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: validation-IDEA${{ matrix.ide }}
+          path: |
+            build/reports/tests/test/
+            build/test-results/test/
+            build/reports/pluginVerifier/

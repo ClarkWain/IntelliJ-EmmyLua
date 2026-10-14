@@ -31,7 +31,7 @@ import com.tang.intellij.lua.ty.ITySubstitutor
 
 interface LuaShortNamesManager {
     companion object {
-        private val KEY = Key.create<LuaShortNamesManager>("com.tang.intellij.lua.luaShortNamesManager")
+        private val KEY = Key.create<LuaShortNamesManager>("com.weitp.intellij.lua.luaShortNamesManager")
 
         fun getInstance(project: Project): LuaShortNamesManager {
             var instance = project.getUserData(KEY)

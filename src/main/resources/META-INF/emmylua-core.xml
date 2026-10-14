@@ -414,16 +414,16 @@
     </actions>
 
     <extensionPoints>
-        <extensionPoint qualifiedName="com.tang.intellij.lua.luaClassInheritorsSearch" interface="com.intellij.util.QueryExecutor" dynamic="true"/>
-        <extensionPoint qualifiedName="com.tang.intellij.lua.luaAllClassesSearch" interface="com.intellij.util.QueryExecutor" dynamic="true"/>
-        <extensionPoint qualifiedName="com.tang.intellij.lua.luaOverridingMethodsSearch" interface="com.intellij.util.QueryExecutor" dynamic="true"/>
-        <extensionPoint qualifiedName="com.tang.intellij.lua.luaOverridenMethodsSearch" interface="com.intellij.util.QueryExecutor" dynamic="true"/>
-        <extensionPoint qualifiedName="com.tang.intellij.lua.luaFileResolver" interface="com.tang.intellij.lua.ext.ILuaFileResolver" dynamic="true"/>
-        <extensionPoint qualifiedName="com.tang.intellij.lua.luaTypeInfer" interface="com.tang.intellij.lua.ext.ILuaTypeInfer" dynamic="true"/>
-        <extensionPoint qualifiedName="com.tang.intellij.lua.luaShortNamesManager" interface="com.tang.intellij.lua.psi.search.LuaShortNamesManager" dynamic="true"/>
+        <extensionPoint qualifiedName="com.weitp.intellij.lua.luaClassInheritorsSearch" interface="com.intellij.util.QueryExecutor" dynamic="true"/>
+        <extensionPoint qualifiedName="com.weitp.intellij.lua.luaAllClassesSearch" interface="com.intellij.util.QueryExecutor" dynamic="true"/>
+        <extensionPoint qualifiedName="com.weitp.intellij.lua.luaOverridingMethodsSearch" interface="com.intellij.util.QueryExecutor" dynamic="true"/>
+        <extensionPoint qualifiedName="com.weitp.intellij.lua.luaOverridenMethodsSearch" interface="com.intellij.util.QueryExecutor" dynamic="true"/>
+        <extensionPoint qualifiedName="com.weitp.intellij.lua.luaFileResolver" interface="com.tang.intellij.lua.ext.ILuaFileResolver" dynamic="true"/>
+        <extensionPoint qualifiedName="com.weitp.intellij.lua.luaTypeInfer" interface="com.tang.intellij.lua.ext.ILuaTypeInfer" dynamic="true"/>
+        <extensionPoint qualifiedName="com.weitp.intellij.lua.luaShortNamesManager" interface="com.tang.intellij.lua.psi.search.LuaShortNamesManager" dynamic="true"/>
     </extensionPoints>
 
-    <extensions defaultExtensionNs="com.tang.intellij.lua">
+    <extensions defaultExtensionNs="com.weitp.intellij.lua">
         <luaClassInheritorsSearch implementation="com.tang.intellij.lua.psi.search.LuaClassInheritorsSearchExecutor" id="base"/>
         <luaAllClassesSearch implementation="com.tang.intellij.lua.psi.search.LuaAllClassesSearchExecutor" id="base"/>
         <luaOverridingMethodsSearch implementation="com.tang.intellij.lua.psi.search.LuaOverridingMethodsSearchExecutor" id="base"/>

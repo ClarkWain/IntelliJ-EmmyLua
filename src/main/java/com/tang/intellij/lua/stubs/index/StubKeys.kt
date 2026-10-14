@@ -23,9 +23,9 @@ import com.tang.intellij.lua.comment.psi.LuaDocTagClass
 import com.tang.intellij.lua.psi.LuaPsiTypeMember
 
 object StubKeys {
-    val CLASS_MEMBER = StubIndexKey.createIndexKey<String, LuaPsiTypeMember>("com.tang.intellij.lua.class.member")
-    val SHORT_NAME = StubIndexKey.createIndexKey<String, NavigatablePsiElement>("com.tang.intellij.lua.short_name")
-    val CLASS = StubIndexKey.createIndexKey<String, LuaDocTagClass>("com.tang.intellij.lua.class")
-    val SUPER_CLASS = StubIndexKey.createIndexKey<String, LuaDocTagClass>("com.tang.intellij.lua.super_class")
-    val ALIAS = StubIndexKey.createIndexKey<String, LuaDocTagAlias>("com.tang.intellij.lua.alias")
+    val CLASS_MEMBER = StubIndexKey.createIndexKey<String, LuaPsiTypeMember>("com.weitp.intellij.lua.class.member")
+    val SHORT_NAME = StubIndexKey.createIndexKey<String, NavigatablePsiElement>("com.weitp.intellij.lua.short_name")
+    val CLASS = StubIndexKey.createIndexKey<String, LuaDocTagClass>("com.weitp.intellij.lua.class")
+    val SUPER_CLASS = StubIndexKey.createIndexKey<String, LuaDocTagClass>("com.weitp.intellij.lua.super_class")
+    val ALIAS = StubIndexKey.createIndexKey<String, LuaDocTagAlias>("com.weitp.intellij.lua.alias")
 }

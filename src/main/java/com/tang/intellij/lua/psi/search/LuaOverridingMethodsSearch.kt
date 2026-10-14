@@ -31,7 +31,7 @@ class LuaOverridingMethodsSearch : ExtensibleQueryFactory<LuaTypeMethod<*>, LuaO
     class SearchParameters(val method: LuaTypeMethod<*>, val isDeep: Boolean)
 
     companion object {
-        private val EP_NAME = ExtensionPointName.create<QueryExecutor<LuaTypeMethod<*>, SearchParameters>>("com.tang.intellij.lua.luaOverridingMethodsSearch")
+        private val EP_NAME = ExtensionPointName.create<QueryExecutor<LuaTypeMethod<*>, SearchParameters>>("com.weitp.intellij.lua.luaOverridingMethodsSearch")
 
         private val INSTANCE = LuaOverridingMethodsSearch()
 

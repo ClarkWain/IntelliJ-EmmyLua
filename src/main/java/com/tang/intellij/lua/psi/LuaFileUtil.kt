@@ -38,7 +38,7 @@ object LuaFileUtil {
 
     val pluginVirtualDirectory: VirtualFile?
         get() {
-            val descriptor = PluginManagerCore.getPlugin(PluginId.getId("com.tang"))
+            val descriptor = PluginManagerCore.getPlugin(PluginId.getId("com.weitp"))
             if (descriptor != null) {
                 val pluginPath = descriptor.pluginPath
                 val url = VfsUtil.pathToUrl(pluginPath.toAbsolutePath().toString())

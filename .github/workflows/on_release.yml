@@ -1,9 +1,12 @@
-name: Publish Plugin
+name: Publish to JetBrains Marketplace (manual)
 
 on:
-  push:
-    tags:
-      - v*
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Marketplace version
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -16,20 +19,10 @@ jobs:
 
     env:
       CI: true
+      CI_BUILD_VERSION: ${{ inputs.version }}
       IDEA_PUBLISH_TOKEN: ${{ secrets.IDEA_PUBLISH_TOKEN }}
 
     steps:
-      - name: Config
-        uses: actions/github-script@v6.1.0
-        with:
-          script: |
-            // refs/tags/v1.3.7
-            const ver = context.ref.substring(11)
-            const sha = context.sha.substring(0, 7)
-            core.exportVariable("CI_BUILD_VERSION", ver)
-            core.info(`ver = ${ver}`)
-            core.info(`sha = ${sha}`)
-
       - name: Checkout
         uses: actions/checkout@v3
 
@@ -45,11 +38,11 @@ jobs:
           java-version: '25'
           distribution: 'temurin'
 
-      - name: Publish 2026.2
+      - name: Publish 2026
         run: |
           export JAVA_HOME="$JAVA_HOME_21_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
-          ./gradlew publishPlugin -DIDEA_VER=2026.2 --no-configuration-cache
+          ./gradlew publishPlugin -DIDEA_VER=2026 --no-configuration-cache
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4.6.2

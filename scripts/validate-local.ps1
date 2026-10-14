@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$IdePath,
-    [string]$IdeaVersion = '2025.2'
+    [ValidateSet('2025', '2026')][string]$IdeaVersion = '2025',
+    [string]$GradleJavaHome
 )
 $ErrorActionPreference = 'Stop'
 $ideRoot = (Resolve-Path -LiteralPath $IdePath).Path
@@ -11,12 +12,26 @@ if (-not (Test-Path -LiteralPath (Join-Path $ideRoot 'product-info.json'))) {
 $product = Get-Content -LiteralPath (Join-Path $ideRoot 'product-info.json') -Raw | ConvertFrom-Json
 Write-Host "Validating against $($product.name) $($product.version), build $($product.buildNumber)"
 $previousJavaHome = $env:JAVA_HOME
+$previousJavaHome25 = $env:JAVA_HOME_25_X64
 $validationDrive = $null
 Push-Location $repoRoot
 try {
-    $env:JAVA_HOME = Join-Path $ideRoot 'jbr'
+    $ideJbr = Join-Path $ideRoot 'jbr'
+    if ($GradleJavaHome) {
+        $env:JAVA_HOME = (Resolve-Path -LiteralPath $GradleJavaHome).Path
+    } elseif (Test-Path -LiteralPath (Join-Path $ideJbr 'bin/java.exe')) {
+        $env:JAVA_HOME = $ideJbr
+    }
     if (-not (Test-Path -LiteralPath (Join-Path $env:JAVA_HOME 'bin/java.exe'))) {
-        throw 'The IDE must include its JetBrains Runtime.'
+        throw 'Provide a JDK 21 path using -GradleJavaHome.'
+    }
+    $javaRelease = Get-Content -LiteralPath (Join-Path $env:JAVA_HOME 'release') -Raw
+    if ($javaRelease -notmatch 'JAVA_VERSION="21[.\"]') {
+        throw 'Gradle 8.14 requires JDK 21 for this project. Provide -GradleJavaHome pointing to JDK 21.'
+    }
+    if ($IdeaVersion -eq '2026' -and (Test-Path -LiteralPath (Join-Path $ideJbr 'release'))) {
+        $jbrRelease = Get-Content -LiteralPath (Join-Path $ideJbr 'release') -Raw
+        if ($jbrRelease -match 'JAVA_VERSION="25[.\"]') { $env:JAVA_HOME_25_X64 = $ideJbr }
     }
     # Windows Java argument files can misread a non-ASCII checkout path.
     # Map the existing checkout without moving or copying any source files.
@@ -37,5 +52,6 @@ try {
 } finally {
     Pop-Location
     $env:JAVA_HOME = $previousJavaHome
+    $env:JAVA_HOME_25_X64 = $previousJavaHome25
     if ($validationDrive) { & subst.exe $validationDrive /D }
 }

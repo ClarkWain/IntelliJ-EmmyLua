@@ -1,131 +1,83 @@
-![logo](/snapshot/logo.png)
-# EmmyLua for IntelliJ IDEA
+# Weitp Lua
 
-本 fork 将 [Luanalysis](https://github.com/Benjamin-Dobell/IntelliJ-Luanalysis) 的类型系统迁入当前 EmmyLua，保留上游调试器和平台适配。
+English | [简体中文](README.zh-CN.md)
 
-- 新增 `@shape`、泛型类与别名、递归别名、`@type` / `@not` 转换、索引字段、可调用类型、可选参数和可变返回值等支持。
-- 已针对 **Android Studio 2025.2.3 / IntelliJ 平台 252** 构建、测试并实际运行验证。
-- 安装本 fork 的 ZIP：Settings → Plugins → 齿轮菜单 → Install Plugin from Disk。插件 ID 沿用 EmmyLua 的 `com.tang`，会替换已有 EmmyLua；不要同时启用 Luanalysis。
-- 类型安全检查默认启用，类型不匹配默认显示为错误；可以在 IDE 的 Inspections 设置中调整。
+A Lua plugin for IntelliJ IDEA and Android Studio that brings
+[Luanalysis](https://github.com/Benjamin-Dobell/IntelliJ-Luanalysis)'s advanced type
+analysis to the maintained [EmmyLua](https://github.com/EmmyLua/IntelliJ-EmmyLua)
+codebase, preserving EmmyLua's editor tools and debugger integrations.
+This is an independent fork, with plugin ID **`com.weitp`** and display name
+**Weitp Lua**.
 
-完整特性与来源见 [迁移说明](docs/luanalysis-migration.md)，验证版本、测试和截图见 [验证记录](docs/validation.md)。
-本地复验可运行 `scripts/validate-local.ps1 -IdePath <IDE安装目录>`。
+## Install
 
-[![Build status](https://github.com/ClarkWain/IntelliJ-EmmyLua/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/ClarkWain/IntelliJ-EmmyLua/actions/workflows/build.yml)
-[![Online EmmyLua Doc](https://img.shields.io/badge/emmy-doc-46BC99.svg?style=flat-square)](https://emmylua.github.io)
-[![在线文档](https://img.shields.io/badge/emmy-中文-46BC99.svg?style=flat-square)](https://emmylua.github.io/zh_CN)
-[![Jetbrains plugin](https://img.shields.io/jetbrains/plugin/d/9768-emmylua.svg?style=flat-square)](https://plugins.jetbrains.com/plugin/9768-emmylua)
-[![Jetbrains plugin](https://img.shields.io/jetbrains/plugin/v/9768-emmylua.svg?style=flat-square)](https://plugins.jetbrains.com/plugin/9768-emmylua)
-[![donate](https://img.shields.io/badge/donate-emmy-FF69B4.svg?style=flat-square)](https://emmylua.github.io/donate.html)
-[![Join the chat at gitter](https://img.shields.io/badge/chat-on%20gitter-46BC99.svg?style=flat-square)](https://gitter.im/emmylua/Lobby?utm_source=share-link&utm_medium=link&utm_campaign=share-link)
-[![加入QQ群](https://img.shields.io/badge/chat-QQ(1)群-46BC99.svg?style=flat-square)](https://jq.qq.com/?_wv=1027&k=5Br83i5)
-[![加入QQ群](https://img.shields.io/badge/chat-QQ(2)群-46BC99.svg?style=flat-square)](https://jq.qq.com/?_wv=1027&k=5EeI0Sm)
+1. Download the ZIP matching your IDE from [Releases](https://github.com/ClarkWain/IntelliJ-EmmyLua/releases).
+2. Disable EmmyLua, Luanalysis and other Lua language plugins to avoid multiple
+   providers handling the same Lua files.
+3. Open **Settings → Plugins → gear menu → Install Plugin from Disk**, select the
+   ZIP, and restart the IDE. Do not extract the ZIP yourself.
 
-QQ交流群：1群：`29850775` 2群：`529914962`
-(最新版本以及部分视频演示在群文件中下载)
+The independent ID prevents this fork from replacing an installed EmmyLua or
+Luanalysis plugin. Simultaneously enabling them is not supported.
 
-![snapshot](/snapshot/overview.gif)
+| Release package | Supported IntelliJ Platform range |
+| --- | --- |
+| `Weitp-Lua-1.5.1-IDEA2025.zip` | IDEA 2025.1–2025.3 (251–253) |
+| `Weitp-Lua-1.5.1-IDEA2026.zip` | IDEA 2026.1–2026.2 (261–262) |
 
-## Find usages
-![find_usages](/snapshot/find_usages.gif)
-
-## Rename
-![rename](/snapshot/rename.gif)
-
-## Parameter hints
-![param_hints](/snapshot/param_hints.png)
-![param_hints_cfg](/snapshot/param_hints_cfg.png)
-
-## Go to symbol
-![go_to_symbol](/snapshot/go_to_symbol.gif)
-
-## Go to class
-![go_to_class](/snapshot/go_to_class.gif)
-
-## Quick Documentation(Ctrl + Q)
-![quick_documentation](/snapshot/quick_documentation.gif)
-
-## Method separators
-![method_separators_cfg](/snapshot/method_separators_cfg.png)
-![method_separators](/snapshot/method_separators.png)
-
-## Method override line marker
-![method_override_line_marker](/snapshot/method_override_line_marker.gif)
+For Android Studio, match the IntelliJ platform build in **Help → About**, not
+just the year in its marketing version. The user's Android Studio 2025.2.3
+(build `AI-252.28238.7.2523.14688667`) uses the **2025** package.
+Exact tested builds, checksums and runtime evidence are recorded in
+[validation](docs/validation.md).
 
 ## Features
-| feature                              | progress |
-| ------------------------------------ | :------: |
-| Syntax highlighting                  |    ✔     |
-| Highlighting global                  |    ✔     |
-| Highlighting local/param             |    ✔     |
-| Highlighting up value                |    ✔     |
-| Lua 5.3 support                      |    ✔     |
-| Find usages                          |    ✔     |
-| Rename(Shift + F6)                   |    ✔     |
-| Go to definition(Ctrl + Mouse)       |    ✔     |
-| Go to symbol(Ctrl + Alt + Shift + N) |    ✔     |
-| Go to class(Ctrl + N)                |    ✔     |
-| Go to file(Ctrl + Shift + N)         |    ✔     |
-| Parameter name hints                 |    ✔     |
-| Keyword completion                   |    ✔     |
-| Basic completion                     |    ✔     |
-| Structure view                       |    ✔     |
-| Brace Matching                       |    ✔     |
-| Comment in/out                       |    ✔     |
-| Color settings page                  |    ✔     |
-| Comment based type/class annotation  |    ✔     |
-| Method override line marker          |    ✔     |
-| Name suggestion for refactor         |    ✔     |
-| Quick Documentation(Ctrl + Q)        |    ✔     |
-| Live templates                       |    ✔     |
-| Postfix completion templates         |    14    |
-| Code formatter                       |    ✔     |
-| Code intentions                      |    9     |
-| Code inspections                     |    7     |
-| Lua Standard Library/API             |    ✔     |
-| Region folding                       |    ✔     |
-| Attach Debugger                      |    ✔     |
-| Remote Debugger                      |    ✔     |
-| Lua Check                            |    ✔     |
-| Embed Remote Debugger                |    0%    |
-| Lua Profiler                         |    ✔     |
-| ... .etc                             |          |
 
-## Road map
-- [ ] Attach debugger rewriting
-- [x] Remote debugger rewriting
-- [ ] Data follow inspections
-- [ ] Ctrl follow inspections
-- [ ] `@interface` support
-- [ ] API Hub
+- Structural `@shape` types, indexed fields, typed dictionaries and tuples.
+- Generic classes, constrained generics, generic aliases and recursive aliases.
+- Expression and return casts with `@type`, and union exclusion with `@not`.
+- Callable classes, overloads, optional parameters and variadic results.
+- Type checks for assignments, arguments, returns, inheritance and undeclared members.
+- Lua 5.1–5.4 definitions, completion, navigation, rename, formatting, documentation
+  and the existing EmmyLua debugger integrations.
 
-## Build environment requirements
+Type-safety inspections are enabled by default and type mismatches appear as
+errors. Adjust their severity and strict-nil/unknown-type handling in the IDE's
+inspection and Lua settings when needed.
 
-- JDK 11
-- Setup environment variables as following:
+See the [migration inventory](docs/luanalysis-migration.md) for source revisions
+and feature-level regression coverage. The small
+[validation project](examples/luanalysis-validation) includes valid generic and
+shape examples, plus deliberately invalid examples for checking diagnostics.
 
-        JAVA_HOME="path to JDK 11"
-        IDEA_HOME_203="path to IDEA 203+"
-        
-## Building
+## Build and validate
 
-  `./gradlew buildPlugin -DIDEA_VER=203`
+Use JDK 21 to run Gradle. The 2025 target compiles against IDEA 2025.1 with JDK 21;
+the 2026 target compiles against IDEA 2026.1 and requires a JDK 25 toolchain.
+Set `JAVA_HOME_25_X64` to that JDK if Gradle cannot find it.
 
-## Developed By
+```sh
+./gradlew test buildPlugin -DIDEA_VER=2025 --no-configuration-cache
+./gradlew test buildPlugin -DIDEA_VER=2026 --no-configuration-cache
+```
 
-[**@tangzx** 阿唐](https://github.com/tangzx)
+Archives are written to `build/distributions/`. To use an installed IDE as the
+SDK, add `-PlocalIdePath=/path/to/ide`. To verify against several installed IDEs,
+add `-PverificationIdePaths="/path/to/ide1;/path/to/ide2"` and run `verifyPlugin`.
+Compile releases against the oldest IDE in their declared range.
 
-**Contributors**
-- [**@dsmgit** dsmgit](https://github.com/dsmgit)
-- [**@Perryvw** Perry van Wesel](https://github.com/Perryvw)
-- [**@ice1000** Tesla Ice Zhang](https://github.com/ice1000)
-- [**@mqualizz** Marco Qualizza](https://github.com/mqualizz)
-- [**@jb574** jb574](https://github.com/jb574)
-- [**@luchuanbaker** luchuanbaker](https://github.com/luchuanbaker)
-- [**@LiamYao** Yao](https://github.com/LiamYao)
-- [**@Dauch** Tyler Dauch](https://github.com/Dauch)
-- [**@Christopher-St** Christopher-St](https://github.com/Christopher-St)
-- [**@taigacon** taigacon](https://github.com/taigacon)
-- [**@KKKIIO** KKKIIO](https://github.com/KKKIIO)
-- [**@zj6882917** zj6882917](https://github.com/zj6882917)
-- [**@fangfang1984** fangfang1984](https://github.com/fangfang1984)
+On Windows, this helper also handles non-ASCII checkout paths:
+
+```powershell
+.\scripts\validate-local.ps1 -IdePath 'C:\Program Files\Android\Android_Studio_2025'
+```
+
+## Credits and license
+
+Based on EmmyLua by [tangzx](https://github.com/tangzx) and its contributors, and
+Luanalysis by [Benjamin Dobell](https://github.com/Benjamin-Dobell) and its
+contributors. Original copyright notices are retained. Both upstream projects
+and this fork use the [Apache License 2.0](LICENSE).
+
+[EmmyLua documentation](https://emmylua.github.io/) ·
+[Report an issue in this fork](https://github.com/ClarkWain/IntelliJ-EmmyLua/issues)

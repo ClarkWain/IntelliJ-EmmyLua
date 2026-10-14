@@ -15,7 +15,7 @@ Source revisions:
 
 The user's installed Android Studio is `AndroidStudio2025.2.3`, build
 `AI-252.28238.7.2523.14688667`, with JBR 21.0.8. The primary target is IntelliJ
-Platform **252**, with the upstream **262** build configuration retained separately.
+Platform **252**. Release builds cover the **251–253** and **261–262** ranges.
 Compatibility must be verified per target; a declared build range is not a test result.
 
 ## Feature inventory
@@ -46,8 +46,11 @@ test counts are recorded in the validation report after running the suite.
 
 ## Integration decisions
 
-- Preserve EmmyLua's plugin ID `com.tang`, settings identity and extension-point
-  namespace. Existing EmmyLua installations receive the extended implementation.
+- Use independent plugin ID `com.weitp`, display name Weitp Lua, and private
+  extension-point/index namespace `com.weitp.intellij.lua`. Source package names
+  and existing Lua settings remain intact. Disable other Lua language plugins
+  before enabling this fork; an independent ID does not allow multiple language
+  implementations to handle the same Lua files simultaneously.
 - Preserve upstream debugger implementations and current native debugger package
   versions, adapting their references to the new PSI names.
 - Preserve upstream platform compatibility helpers and merge newer API fixes.

@@ -24,7 +24,7 @@ import com.tang.intellij.lua.ty.ITy
 
 interface ILuaTypeInfer {
     companion object {
-        private val EP_NAME = ExtensionPointName.create<ILuaTypeInfer>("com.tang.intellij.lua.luaTypeInfer")
+        private val EP_NAME = ExtensionPointName.create<ILuaTypeInfer>("com.weitp.intellij.lua.luaTypeInfer")
 
         fun infer(context: SearchContext, target: LuaPsiTypeGuessable): ITy? {
             for (typeInfer in EP_NAME.extensionList) {

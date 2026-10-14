@@ -34,7 +34,7 @@ class LuaClassInheritorsSearch : ExtensibleQueryFactory<LuaDocTagClass, LuaClass
     class SearchParameters(val searchScope: GlobalSearchScope, val project: Project, val typeName: String, val isDeep: Boolean)
 
     companion object {
-        private val EP_NAME = ExtensionPointName.create<QueryExecutor<LuaDocTagClass, SearchParameters>>("com.tang.intellij.lua.luaClassInheritorsSearch")
+        private val EP_NAME = ExtensionPointName.create<QueryExecutor<LuaDocTagClass, SearchParameters>>("com.weitp.intellij.lua.luaClassInheritorsSearch")
 
         private val INSTANCE = LuaClassInheritorsSearch()
 

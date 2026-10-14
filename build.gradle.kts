@@ -20,6 +20,7 @@ import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -34,7 +35,7 @@ data class BuildData(
     val ideaSDKVersion: String,
     val sinceBuild: String,
     val untilBuild: String,
-    val archiveName: String = "IntelliJ-EmmyLua",
+    val archiveName: String = "Weitp-Lua",
     val jvmTarget: String = "1.8",
     val targetCompatibilityLevel: JavaVersion = JavaVersion.VERSION_11,
     val buildJdkVersion: JavaVersion = targetCompatibilityLevel,
@@ -46,19 +47,19 @@ data class BuildData(
 
 val buildDataList = listOf(
     BuildData(
-        ideaSDKShortVersion = "2025.2",
-        ideaSDKVersion = "2025.2.5",
-        sinceBuild = "252",
-        untilBuild = "252.*",
+        ideaSDKShortVersion = "2025",
+        ideaSDKVersion = "2025.1.7.2",
+        sinceBuild = "251",
+        untilBuild = "253.*",
         bunch = "212",
         targetCompatibilityLevel = JavaVersion.VERSION_21,
         buildJdkVersion = JavaVersion.VERSION_21,
         jvmTarget = "21"
     ),
     BuildData(
-        ideaSDKShortVersion = "2026.2",
-        ideaSDKVersion = "2026.2",
-        sinceBuild = "253",
+        ideaSDKShortVersion = "2026",
+        ideaSDKVersion = "2026.1.5",
+        sinceBuild = "261",
         untilBuild = "262.*",
         bunch = "212",
         targetCompatibilityLevel = JavaVersion.VERSION_21,
@@ -196,13 +197,29 @@ project(":") {
     intellijPlatform {
         version = version
         sandboxContainer.set(layout.buildDirectory.dir("${buildVersionData.ideaSDKShortVersion}/idea-sandbox"))
+        providers.gradleProperty("verificationIdeVersions").orNull?.let { versions ->
+            pluginVerification {
+                ides {
+                    versions.split(';').forEach { ideVersion ->
+                        create(IntelliJPlatformType.IntellijIdeaUltimate, ideVersion) {
+                            useInstaller = false
+                        }
+                    }
+                }
+            }
+        }
     }
 
 
     tasks {
         verifyPlugin {
-            providers.gradleProperty("localIdePath").orNull?.let {
-                ides.setFrom(file(it))
+            val verificationPaths = providers.gradleProperty("verificationIdePaths").orNull
+            if (verificationPaths != null) {
+                ides.setFrom(verificationPaths.split(';').map { file(it) })
+            } else {
+                providers.gradleProperty("localIdePath").orNull?.let {
+                    ides.setFrom(file(it))
+                }
             }
         }
         test {

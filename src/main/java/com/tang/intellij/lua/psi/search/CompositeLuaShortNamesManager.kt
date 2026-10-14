@@ -114,6 +114,6 @@ class CompositeLuaShortNamesManager : LuaShortNamesManager {
     }
 
     companion object {
-        private val EP_NAME = ExtensionPointName.create<LuaShortNamesManager>("com.tang.intellij.lua.luaShortNamesManager")
+        private val EP_NAME = ExtensionPointName.create<LuaShortNamesManager>("com.weitp.intellij.lua.luaShortNamesManager")
     }
 }
