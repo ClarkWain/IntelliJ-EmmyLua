@@ -70,6 +70,12 @@
     ]]></description>
 
     <change-notes><![CDATA[
+    <strong>1.5.4</strong>
+    <ul>
+        <li>Infer non-nil types in short-circuit expressions and guarded branches.</li>
+        <li>Recognize non-null assignments to optional variables and members.</li>
+        <li>Discard stale facts after writes, calls and loop iterations.</li>
+    </ul>
     <strong>1.5.3</strong>
     <ul>
         <li>Project renamed to IntelliJ-LuaInsight.</li>

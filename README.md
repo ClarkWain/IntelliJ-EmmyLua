@@ -18,8 +18,8 @@ This independent fork is maintained by [ClarkWain](https://github.com/ClarkWain)
 
 | Release package | Supported IntelliJ Platform range |
 | --- | --- |
-| `IntelliJ-LuaInsight-1.5.3-IDEA2025.zip` | IDEA 2025.1–2025.3 (251–253) |
-| `IntelliJ-LuaInsight-1.5.3-IDEA2026.zip` | IDEA 2026.1–2026.2 (261–262) |
+| `IntelliJ-LuaInsight-1.5.4-IDEA2025.zip` | IDEA 2025.1–2025.3 (251–253) |
+| `IntelliJ-LuaInsight-1.5.4-IDEA2026.zip` | IDEA 2026.1–2026.2 (261–262) |
 
 For Android Studio, select a package using the IntelliJ platform build shown in
 **Help → About**: builds **251–253** use the **2025** package, and builds
@@ -32,6 +32,8 @@ Exact tested builds, checksums and runtime evidence are recorded in
 - Structural `@shape` types, indexed fields, typed dictionaries and tuples.
 - Generic classes, constrained generics, generic aliases and recursive aliases.
 - Expression and return casts with `@type`, and union exclusion with `@not`.
+- Automatic nil checks in `and/or` expressions, guarded branches and after
+  non-null assignments. See [flow-sensitive types](docs/flow-types.md).
 - Callable classes, overloads, optional parameters and variadic results.
 - Type checks for assignments, arguments, returns, inheritance and undeclared members.
 - Lua 5.1–5.4 definitions, completion, navigation, rename, formatting, documentation

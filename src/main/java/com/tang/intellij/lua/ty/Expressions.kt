@@ -46,7 +46,7 @@ fun inferExpr(context: SearchContext, expression: LuaExpression<*>): ITy? {
         }
     }
 
-    val ty = context.withMultipleResults {
+    val inferredTy = context.withMultipleResults {
         if (expression is LuaIndexExpr || expression is LuaNameExpr) {
             val tree = LuaDeclarationTree.get(expression.containingFile)
             val declaration = tree.find(expression)?.firstDeclaration?.psi
@@ -58,9 +58,11 @@ fun inferExpr(context: SearchContext, expression: LuaExpression<*>): ITy? {
         inferExprInner(context, expression)
     }
 
-    if (ty == null) {
+    if (inferredTy == null) {
         return null
     }
+
+    val ty = narrowFlowType(context, expression, inferredTy)
 
     val notTypeCast = PsiTreeUtil.getChildrenOfTypeAsList(expression.comment, LuaDocTagNotImpl::class.java).firstOrNull()
 

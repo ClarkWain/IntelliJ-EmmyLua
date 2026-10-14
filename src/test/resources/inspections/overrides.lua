@@ -753,7 +753,7 @@ local ClassWithFunctionField = {}
 -- Note: Param type inference ought to work base on param index i.e. not depend on param names.
 function ClassWithFunctionField.foo(optionalStringParam)
     optionalStringParam = anyString
-    anyString = <error descr="Type mismatch. Required: 'string' Found: 'nil | string'">optionalStringParam</error>
+    anyString = optionalStringParam
 end
 
 ---@class ChildOfClassWithFunctionField : ClassWithFunctionField
@@ -761,7 +761,7 @@ local ChildOfClassWithFunctionField = {}
 
 function ChildOfClassWithFunctionField.foo(overiddenOptionStringParam)
     overiddenOptionStringParam = anyString
-    anyString = <error descr="Type mismatch. Required: 'string' Found: 'nil | string'">overiddenOptionStringParam</error>
+    anyString = overiddenOptionStringParam
 end
 
 ---@type ClassWithFunctionField
