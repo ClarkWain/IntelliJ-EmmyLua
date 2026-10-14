@@ -16,7 +16,7 @@
 
 <idea-plugin xmlns:xi="http://www.w3.org/2001/XInclude">
     <id>com.weitp</id>
-    <name>Weitp Lua</name>
+    <name>Lua Insight</name>
     <version>1.4.0</version>
     <vendor email="love.tangzx@qq.com">tangzx</vendor>
     <category>Custom Languages</category>
@@ -70,6 +70,11 @@
     ]]></description>
 
     <change-notes><![CDATA[
+    <strong>1.5.2</strong>
+    <ul>
+        <li>Plugin display name and release packages renamed to Lua Insight.</li>
+        <li>Plugin ID remains com.weitp; existing settings and compatibility ranges are preserved.</li>
+    </ul>
     <strong>1.5.1</strong>
     <ul>
         <li>Luanalysis type analysis on IntelliJ IDEA 2025 and 2026.</li>

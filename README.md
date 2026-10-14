@@ -1,4 +1,4 @@
-# Weitp Lua
+# Lua Insight
 
 English | [简体中文](README.zh-CN.md)
 
@@ -7,7 +7,7 @@ A Lua plugin for IntelliJ IDEA and Android Studio that brings
 analysis to the maintained [EmmyLua](https://github.com/EmmyLua/IntelliJ-EmmyLua)
 codebase, preserving EmmyLua's editor tools and debugger integrations.
 This is an independent fork, with plugin ID **`com.weitp`** and display name
-**Weitp Lua**.
+**Lua Insight**.
 
 ## Install
 
@@ -22,8 +22,8 @@ Luanalysis plugin. Simultaneously enabling them is not supported.
 
 | Release package | Supported IntelliJ Platform range |
 | --- | --- |
-| `Weitp-Lua-1.5.1-IDEA2025.zip` | IDEA 2025.1–2025.3 (251–253) |
-| `Weitp-Lua-1.5.1-IDEA2026.zip` | IDEA 2026.1–2026.2 (261–262) |
+| `Lua-Insight-1.5.2-IDEA2025.zip` | IDEA 2025.1–2025.3 (251–253) |
+| `Lua-Insight-1.5.2-IDEA2026.zip` | IDEA 2026.1–2026.2 (261–262) |
 
 For Android Studio, match the IntelliJ platform build in **Help → About**, not
 just the year in its marketing version. The user's Android Studio 2025.2.3

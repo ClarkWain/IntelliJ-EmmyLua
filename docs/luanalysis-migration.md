@@ -46,7 +46,7 @@ test counts are recorded in the validation report after running the suite.
 
 ## Integration decisions
 
-- Use independent plugin ID `com.weitp`, display name Weitp Lua, and private
+- Use independent plugin ID `com.weitp`, display name Lua Insight, and private
   extension-point/index namespace `com.weitp.intellij.lua`. Source package names
   and existing Lua settings remain intact. Disable other Lua language plugins
   before enabling this fork; an independent ID does not allow multiple language

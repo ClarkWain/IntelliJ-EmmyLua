@@ -32,7 +32,7 @@ jobs:
 
     env:
       CI: true
-      CI_BUILD_VERSION: ${{ inputs.version || format('1.5.1-dev.{0}', github.run_number) }}
+      CI_BUILD_VERSION: ${{ inputs.version || format('1.5.2-dev.{0}', github.run_number) }}
 
     steps:
       - name: Checkout
@@ -59,7 +59,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4.6.2
         with:
-          name: Weitp-Lua-IDEA${{ matrix.ide }}
+          name: Lua-Insight-IDEA${{ matrix.ide }}
           path: build/distributions/*.zip
 
       - name: Upload validation reports

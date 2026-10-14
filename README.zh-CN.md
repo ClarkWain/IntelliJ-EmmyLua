@@ -1,4 +1,4 @@
-# Weitp Lua
+# Lua Insight
 
 [English](README.md) | 简体中文
 
@@ -6,7 +6,7 @@
 [Luanalysis](https://github.com/Benjamin-Dobell/IntelliJ-Luanalysis) 的高级类型分析
 迁入持续维护的 [EmmyLua](https://github.com/EmmyLua/IntelliJ-EmmyLua)，保留 EmmyLua
 的编辑器功能和调试器集成。这是独立 fork，插件 ID 为 **`com.weitp`**，显示名称为
-**Weitp Lua**。
+**Lua Insight**。
 
 ## 安装
 
@@ -18,8 +18,8 @@
 
 | 发布包 | 支持的 IntelliJ 平台范围 |
 | --- | --- |
-| `Weitp-Lua-1.5.1-IDEA2025.zip` | IDEA 2025.1–2025.3（251–253） |
-| `Weitp-Lua-1.5.1-IDEA2026.zip` | IDEA 2026.1–2026.2（261–262） |
+| `Lua-Insight-1.5.2-IDEA2025.zip` | IDEA 2025.1–2025.3（251–253） |
+| `Lua-Insight-1.5.2-IDEA2026.zip` | IDEA 2026.1–2026.2（261–262） |
 
 Android Studio 请按 **Help → About** 中的 IntelliJ 平台 Build 选择包，不只看产品年份。
 本机 Android Studio 2025.2.3（`AI-252.28238.7.2523.14688667`）使用 **2025** 包。
